@@ -1,0 +1,269 @@
+<?php
+
+namespace Nawasara\Hibah\Imports;
+
+use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
+use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Nawasara\Hibah\Models\Kategori;
+use Nawasara\Hibah\Models\Pengajuan;
+use Nawasara\Registry\Models\Opd;
+
+/**
+ * Maps the OPD yearly Excel form into pengajuan + realisasi rows.
+ *
+ * Column index map (0-based, confirmed against 2024/2026 files):
+ *   1  Tahun           10 Nama OPD          19 Realisasi TW I
+ *   2  Kategori        11 Program           20 Realisasi TW II
+ *   3  Pengusul        12 Kegiatan          21 Realisasi TW III
+ *   4  Dapil           13 Sub Kegiatan      22 Realisasi TW IV
+ *   5  Lintas Dapil    14 Nama Penerima     23 Anggaran Belum Cair
+ *   6  Kamus Usulan    15 Alamat Penerima   24 Alasan
+ *   7  SK Kepala Dae.  16 Anggaran Sebelum  25 Bukti Monev (skip — file)
+ *   8  Tgl Proposal    17 Anggaran Setelah  26 Keterangan
+ *   9  Peruntukan      18 Verifikasi (MS/TMS)
+ *
+ * Two header rows (main + triwulan sub-header) → data starts at index 2
+ * within each chunk's collection. We detect & skip header rows by checking
+ * whether the Tahun cell is numeric.
+ *
+ * Runs with OpdScope bypassed: import is an admin/console operation that
+ * must write across all OPD regardless of who triggered it.
+ */
+class PengajuanImport implements ToCollection, WithChunkReading
+{
+    public int $read = 0;
+    public int $skipped = 0;
+    public int $created = 0;
+    public int $realisasiWritten = 0;
+    public int $opdCreated = 0;
+
+    /** Cache OPD + Kategori lookups to avoid a query per row. */
+    protected array $opdCache = [];
+    protected array $kategoriCache = [];
+
+    public function __construct(
+        protected int $tahun,
+        protected bool $dry = false,
+    ) {}
+
+    public function chunkSize(): int
+    {
+        return 500;
+    }
+
+    public function collection(Collection $rows): void
+    {
+        foreach ($rows as $row) {
+            $this->importRow($row->values()->all());
+        }
+    }
+
+    /**
+     * Map + persist a single row given a 0-indexed cell array. Shared by the
+     * Excel (collection) path and the CSV streaming path so column mapping
+     * lives in exactly one place.
+     */
+    public function importRow(array $cells): void
+    {
+        $this->read++;
+
+        $namaPenerima = trim((string) ($cells[14] ?? ''));
+        $tahunCell = $cells[1] ?? null;
+
+        // Skip header rows + blank rows. A real data row has a numeric year
+        // and a recipient name.
+        if ($namaPenerima === '' || ! is_numeric($tahunCell)) {
+            $this->skipped++;
+
+            return;
+        }
+
+        if ($this->dry) {
+            $this->created++;
+            $this->countRealisasi($cells);
+
+            return;
+        }
+
+        $opdId = $this->resolveOpd(trim((string) ($cells[10] ?? '')));
+        $kategoriId = $this->resolveKategori(trim((string) ($cells[2] ?? '')));
+
+        $pengajuan = Pengajuan::withoutGlobalScopes()->create([
+            'opd_id' => $opdId,
+            'tahun' => $this->tahun,
+            'kategori_id' => $kategoriId,
+            'peruntukan' => $this->mapPeruntukan((string) ($cells[9] ?? '')),
+            'pengusul' => $this->str($cells[3] ?? null),
+            'dapil' => $this->str($cells[4] ?? null),
+            'lintas_dapil' => $this->bool($cells[5] ?? null),
+            'kamus_usulan' => $this->str($cells[6] ?? null),
+            'sk_kepala_daerah' => $this->str($cells[7] ?? null),
+            'tanggal_proposal' => $this->date($cells[8] ?? null),
+            'program' => $this->str($cells[11] ?? null),
+            'kegiatan' => $this->str($cells[12] ?? null),
+            'sub_kegiatan' => $this->str($cells[13] ?? null),
+            'nama_penerima' => $namaPenerima,
+            'alamat_penerima' => $this->str($cells[15] ?? null),
+            'anggaran_sebelum' => $this->money($cells[16] ?? null),
+            'anggaran_setelah' => $this->moneyNullable($cells[17] ?? null),
+            'status_verifikasi' => $this->mapVerifikasi((string) ($cells[18] ?? '')),
+            'anggaran_belum_cair' => $this->moneyNullable($cells[23] ?? null),
+            'alasan_belum_cair' => $this->str($cells[24] ?? null),
+            'keterangan' => $this->str($cells[26] ?? null),
+            // SK present → treat as approved historically.
+            'status' => $this->str($cells[7] ?? null)
+                ? Pengajuan::STATUS_DISETUJUI
+                : Pengajuan::STATUS_DIAJUKAN,
+        ]);
+        $this->created++;
+
+        $this->writeRealisasi($pengajuan, $cells);
+    }
+
+    /**
+     * Stream a CSV (already extracted from a huge xlsx) row-by-row. Memory-
+     * safe for files with hundreds of thousands of rows because fgetcsv
+     * reads one line at a time.
+     */
+    public function importCsv(string $path): void
+    {
+        $fh = fopen($path, 'r');
+        if ($fh === false) {
+            throw new \RuntimeException("Cannot open CSV: {$path}");
+        }
+        while (($row = fgetcsv($fh, 0, ',', '"', '\\')) !== false) {
+            $this->importRow($row);
+        }
+        fclose($fh);
+    }
+
+    protected function resolveOpd(string $name): int
+    {
+        $name = $name !== '' ? $name : 'TIDAK DIKETAHUI';
+
+        if (isset($this->opdCache[$name])) {
+            return $this->opdCache[$name];
+        }
+
+        $opd = Opd::where('name', $name)->first();
+        if (! $opd) {
+            $opd = Opd::create([
+                'code' => Str::upper(Str::slug(Str::limit($name, 20, ''), '_')) ?: 'OPD_'.Str::random(4),
+                'name' => $name,
+            ]);
+            $this->opdCreated++;
+        }
+
+        return $this->opdCache[$name] = $opd->id;
+    }
+
+    protected function resolveKategori(string $nama): ?int
+    {
+        if ($nama === '') {
+            return null;
+        }
+
+        if (isset($this->kategoriCache[$nama])) {
+            return $this->kategoriCache[$nama];
+        }
+
+        $kategori = Kategori::firstOrCreate(['nama' => Str::upper($nama)], ['aktif' => true]);
+
+        return $this->kategoriCache[$nama] = $kategori->id;
+    }
+
+    protected function writeRealisasi(Pengajuan $pengajuan, array $cells): void
+    {
+        foreach ([1 => 19, 2 => 20, 3 => 21, 4 => 22] as $tw => $idx) {
+            $val = $this->moneyNullable($cells[$idx] ?? null);
+            if ($val === null || $val === 0) {
+                continue;
+            }
+            $pengajuan->realisasi()->create([
+                'triwulan' => $tw,
+                'realisasi_anggaran' => $val,
+            ]);
+            $this->realisasiWritten++;
+        }
+    }
+
+    protected function countRealisasi(array $cells): void
+    {
+        foreach ([19, 20, 21, 22] as $idx) {
+            if ($this->moneyNullable($cells[$idx] ?? null)) {
+                $this->realisasiWritten++;
+            }
+        }
+    }
+
+    // --- cell coercion helpers -------------------------------------------
+
+    protected function str($v): ?string
+    {
+        $v = trim((string) $v);
+
+        return $v === '' ? null : $v;
+    }
+
+    protected function bool($v): bool
+    {
+        return Str::contains(Str::lower((string) $v), 'lintas');
+    }
+
+    protected function money($v): int
+    {
+        // Strip everything but digits — Excel may store "Rp 200.000.000".
+        return (int) preg_replace('/[^0-9]/', '', (string) $v);
+    }
+
+    protected function moneyNullable($v): ?int
+    {
+        $clean = preg_replace('/[^0-9]/', '', (string) $v);
+
+        return $clean === '' ? null : (int) $clean;
+    }
+
+    protected function date($v): ?string
+    {
+        if ($v === null || $v === '') {
+            return null;
+        }
+        // Excel serial date (numeric) → Y-m-d.
+        if (is_numeric($v)) {
+            try {
+                return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $v)->format('Y-m-d');
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }
+        try {
+            return \Carbon\Carbon::parse($v)->format('Y-m-d');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    protected function mapPeruntukan(string $v): string
+    {
+        $v = Str::lower($v);
+
+        return match (true) {
+            Str::contains($v, 'bansos') => 'bansos',
+            Str::contains($v, 'bk') || Str::contains($v, 'keuangan') => 'bk',
+            default => 'hibah',
+        };
+    }
+
+    protected function mapVerifikasi(string $v): ?string
+    {
+        $v = Str::upper(trim($v));
+
+        return match (true) {
+            Str::contains($v, 'TMS') => 'tms',
+            Str::contains($v, 'MS') => 'ms',
+            default => null,
+        };
+    }
+}

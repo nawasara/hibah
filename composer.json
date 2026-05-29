@@ -1,0 +1,49 @@
+{
+    "name": "nawasara/hibah",
+    "description": "Grant (hibah) and social aid (bansos) management for the Nawasara superapp framework — per-OPD submission entry, board-decision recording, quarterly realisation tracking, duplicate-recipient detection, and reporting.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "nawasara",
+        "laravel",
+        "hibah",
+        "bansos",
+        "grant-management",
+        "opd",
+        "pemerintah"
+    ],
+    "authors": [
+        {
+            "name": "Pringgo J. Saputro",
+            "email": "odyinggo@gmail.com",
+            "role": "Lead Developer"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/nawasara/hibah/issues",
+        "source": "https://github.com/nawasara/hibah"
+    },
+    "autoload": {
+        "psr-4": {
+            "Nawasara\\Hibah\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.1",
+        "illuminate/support": "^10.0|^12.0",
+        "spatie/laravel-permission": "^6.0",
+        "nawasara/ui": "*",
+        "nawasara/registry": "*",
+        "livewire/livewire": "^3.0",
+        "maatwebsite/excel": "^3.1"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Nawasara\\Hibah\\HibahServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
