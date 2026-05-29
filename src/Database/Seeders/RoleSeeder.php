@@ -12,14 +12,13 @@ use Spatie\Permission\Models\Role;
  *
  *   hibah-operator — OPD staff: entry + manage their own OPD's submissions
  *                    and reports. MUST also be linked to an OPD via the
- *                    "Operator OPD" admin page (nawasara_hibah_operator row)
- *                    — that link is what activates OpdScope. Without it, the
- *                    user would (incorrectly) see all OPD.
+ *                    registry "Keanggotaan OPD" page (registry membership
+ *                    row) — that link activates the OPD scope. Without it,
+ *                    an operator is "restricted" and sees NOTHING (fail-closed).
  *
  *   hibah-admin    — Admin-Hibah: every hibah permission, including master
- *                    kategori and operator management. Deliberately has NO
- *                    operator row, so OpdScope is bypassed and they see all
- *                    OPD.
+ *                    kategori and bulk import. Listed as a privileged role on
+ *                    Pengajuan, so (with no membership) they see all OPD.
  *
  * Idempotent — safe to re-run.
  */
@@ -38,7 +37,7 @@ class RoleSeeder extends Seeder
 
         $adminPerms = array_merge($operatorPerms, [
             'hibah.kategori.manage',
-            'hibah.operator.manage',
+            'hibah.import',
         ]);
 
         // Guard: ensure permissions exist (PermissionSeeder should run first).

@@ -5,9 +5,9 @@ namespace Nawasara\Hibah\Livewire\Pengajuan;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Nawasara\Hibah\Models\Kategori;
-use Nawasara\Hibah\Models\Operator;
 use Nawasara\Hibah\Models\Pengajuan;
 use Nawasara\Registry\Models\Opd;
+use Nawasara\Registry\Support\MembershipResolver;
 
 class Form extends Component
 {
@@ -64,9 +64,9 @@ class Form extends Component
 
     protected function operatorOpdId(): ?int
     {
-        $op = Operator::where('user_id', auth()->id())->where('aktif', true)->first();
-
-        return $op?->opd_id;
+        // OPD membership now lives in the registry (cross-package), resolved
+        // via MembershipResolver. Member → their OPD id; admin/privileged → null.
+        return app(MembershipResolver::class)->opdIdFor(auth()->user());
     }
 
     #[Computed]

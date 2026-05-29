@@ -10,8 +10,8 @@ use Nawasara\Hibah\Imports\PengajuanImport;
 
 /**
  * Admin-only bulk import of historical hibah data from an Excel file.
- * Gated behind hibah.operator.manage (same admin tier as operator/kategori
- * management) — importing writes across all OPD, so it's an admin action.
+ * Gated behind hibah.import — importing writes across all OPD, so it's an
+ * admin-tier action.
  */
 class Index extends Component
 {
@@ -26,20 +26,20 @@ class Index extends Component
 
     public function mount(): void
     {
-        $this->authorize('hibah.operator.manage');
+        $this->authorize('hibah.import');
         $this->tahun = (int) date('Y');
     }
 
     public function downloadTemplate()
     {
-        $this->authorize('hibah.operator.manage');
+        $this->authorize('hibah.import');
 
         return Excel::download(new TemplateExport, 'template-import-hibah.xlsx');
     }
 
     public function import(): void
     {
-        $this->authorize('hibah.operator.manage');
+        $this->authorize('hibah.import');
 
         $this->validate([
             'tahun' => ['required', 'integer', 'min:2000', 'max:2100'],

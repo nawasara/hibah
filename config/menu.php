@@ -27,13 +27,6 @@ return [
                 'navigate' => true,
             ],
             [
-                'label' => 'Operator OPD',
-                'icon' => 'lucide-users',
-                'url' => url($prefix.'/operator'),
-                'permission' => 'hibah.operator.manage',
-                'navigate' => true,
-            ],
-            [
                 'label' => 'Master Kategori',
                 'icon' => 'lucide-tags',
                 'url' => url($prefix.'/kategori'),
@@ -44,7 +37,7 @@ return [
                 'label' => 'Import Data',
                 'icon' => 'lucide-upload',
                 'url' => url($prefix.'/import'),
-                'permission' => 'hibah.operator.manage',
+                'permission' => 'hibah.import',
                 'navigate' => true,
             ],
         ],

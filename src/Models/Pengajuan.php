@@ -6,11 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
-use Nawasara\Hibah\Scopes\OpdScope;
+use Nawasara\Registry\Concerns\ScopedToOpd;
 use Nawasara\Registry\Models\Opd;
 
 class Pengajuan extends Model
 {
+    use ScopedToOpd;
+
     public const STATUS_DIAJUKAN = 'diajukan';
 
     public const STATUS_DISETUJUI = 'disetujui';
@@ -47,9 +49,19 @@ class Pengajuan extends Model
         'anggaran_belum_cair' => 'integer',
     ];
 
+    /**
+     * Roles that may see hibah across all OPD without a membership row:
+     * the global super-admin (developer) and the hibah admin tier. Operators
+     * (hibah-operator) are NOT here — without a membership they see nothing.
+     */
+    protected static function privilegedRoles(): array
+    {
+        return ['developer', 'hibah-admin'];
+    }
+
     protected static function booted(): void
     {
-        static::addGlobalScope(new OpdScope);
+        // OpdScope is applied by the ScopedToOpd trait's boot hook.
 
         // Keep the normalized recipient columns in sync whenever the source
         // fields change — single source of truth for duplicate detection.

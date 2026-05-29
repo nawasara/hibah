@@ -19,9 +19,11 @@ class PermissionSeeder extends Seeder
             'hibah.laporan.view',
             'hibah.laporan.export',
 
-            // Admin-Hibah — cross-OPD master + operator management
+            // Admin-Hibah — cross-OPD master + bulk import.
+            // (User↔OPD membership moved to nawasara/registry; manage it
+            // there via `registry.membership.manage`.)
             'hibah.kategori.manage',
-            'hibah.operator.manage',
+            'hibah.import',
         ];
 
         foreach ($permissions as $permission) {
