@@ -147,12 +147,18 @@ class PengajuanImport implements ToCollection, WithChunkReading
      * → 4+ GB RAM, then fatal). The prior xlsx_to_csv converter that
      * combined readOuterXML() with $reader->next() silently DROPPED rows
      * (3,846 real → 1,924 written) — never use that pattern again.
+     *
+     * When $csvPath is provided, also writes each row to a CSV at that
+     * path while it streams (auditor can sanity-check the conversion
+     * out-of-band). Defaults to a sibling .csv next to the source xlsx.
      */
-    public function importLargeXlsx(string $path): void
+    public function importLargeXlsx(string $path, ?string $csvPath = null): void
     {
         if (! is_file($path)) {
             throw new \RuntimeException("File not found: {$path}");
         }
+
+        $csvPath ??= preg_replace('/\.xlsx$/i', '.csv', $path);
 
         $tmp = sys_get_temp_dir().'/hibah_xlsx_'.uniqid();
         @mkdir($tmp, 0777, true);
@@ -164,14 +170,20 @@ class PengajuanImport implements ToCollection, WithChunkReading
         $zip->extractTo($tmp);
         $zip->close();
 
+        $csv = fopen($csvPath, 'w');
+        if ($csv === false) {
+            throw new \RuntimeException("Cannot write CSV: {$csvPath}");
+        }
+
         try {
             $strings = $this->loadSharedStrings($tmp);
             $sheets = glob($tmp.'/xl/worksheets/*.xml');
             if (! $sheets) {
                 throw new \RuntimeException('No worksheet found in xlsx');
             }
-            $this->streamSheetIntoImport($sheets[0], $strings);
+            $this->streamSheetIntoImport($sheets[0], $strings, $csv);
         } finally {
+            fclose($csv);
             $this->rrmdir($tmp);
         }
     }
@@ -209,8 +221,9 @@ class PengajuanImport implements ToCollection, WithChunkReading
 
     /**
      * @param  list<string>  $strings
+     * @param  resource|null  $csvHandle  Optional fopen handle — every parsed row is also written here as CSV.
      */
-    protected function streamSheetIntoImport(string $sheetPath, array $strings): void
+    protected function streamSheetIntoImport(string $sheetPath, array $strings, $csvHandle = null): void
     {
         $colIdx = static function (string $ref): int {
             $col = preg_replace('/[0-9]+/', '', $ref);
@@ -271,6 +284,9 @@ class PengajuanImport implements ToCollection, WithChunkReading
                     $line = [];
                     for ($i = 0; $i <= $maxIdx; $i++) {
                         $line[$i] = $rowCells[$i] ?? '';
+                    }
+                    if ($csvHandle !== null) {
+                        fputcsv($csvHandle, $line, ',', '"', '\\');
                     }
                     $this->importRow($line);
                 }
@@ -369,15 +385,47 @@ class PengajuanImport implements ToCollection, WithChunkReading
 
     protected function money($v): int
     {
-        // Strip everything but digits — Excel may store "Rp 200.000.000".
-        return (int) preg_replace('/[^0-9]/', '', (string) $v);
+        return $this->moneyNullable($v) ?? 0;
     }
 
+    /**
+     * Parse a money cell to int (or null when empty/unparseable).
+     *
+     * Source data is messy — OPD staff sometimes paste multi-line breakdowns
+     * like "1. Rp.20.748.000\n2. Rp.20.748.000" into the anggaran column.
+     * Naively stripping non-digits then concatenates everything into a huge
+     * number that overflows BIGINT (2024 had 54 such rows, all saturated at
+     * INT64 max). Instead, find the FIRST numeric token (allowing thousands
+     * separators), strip its separators, and stop there. Multi-line entries
+     * are still partially wrong (we keep only the first quarter's amount),
+     * but at least the value is plausible and doesn't poison sum() / chart
+     * rendering downstream.
+     */
     protected function moneyNullable($v): ?int
     {
-        $clean = preg_replace('/[^0-9]/', '', (string) $v);
+        $s = (string) $v;
+        if (trim($s) === '') {
+            return null;
+        }
 
-        return $clean === '' ? null : (int) $clean;
+        // Match the first run of digits, allowing dot/comma/space separators
+        // between them (so "Rp 200.000.000,00" → "200000000"). Stops at the
+        // first newline or text character past the trailing separator.
+        if (! preg_match('/[0-9][0-9\.\,\s]*/', $s, $m)) {
+            return null;
+        }
+        $clean = preg_replace('/[^0-9]/', '', $m[0]);
+        if ($clean === '') {
+            return null;
+        }
+
+        // Guard against any value that, even after first-token extraction,
+        // still exceeds BIGINT range. Treat that as garbage input → null.
+        if (strlen($clean) > 15) { // > 999 trillion: clearly malformed
+            return null;
+        }
+
+        return (int) $clean;
     }
 
     protected function date($v): ?string
