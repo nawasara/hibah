@@ -7,10 +7,16 @@ use Nawasara\Hibah\Models\Pengajuan;
 
 /**
  * Finds potential duplicate / double-funded recipients by grouping on the
- * NORMALIZED name+address columns (lowercase, punctuation-stripped, space-
- * collapsed — derived on save by Pengajuan::normalize). This catches the
- * real-world inconsistency in the source Excel ("MI Muhammadiyah 14 Beton"
- * vs "MI MUHAMMADIYAH 14 BETON.") that an exact match would miss.
+ * NORMALIZED name + NORMALIZED address (lowercase, punctuation-stripped,
+ * space-collapsed — derived on save by Pengajuan::normalize). This catches
+ * the real-world inconsistency in the source Excel ("MI Muhammadiyah 14
+ * Beton" vs "MI MUHAMMADIYAH 14 BETON.") that an exact match would miss,
+ * tanpa over-flag nama umum seperti "MDT MIFTAHUL HUDA" yang dipakai
+ * banyak madrasah di alamat berbeda.
+ *
+ * Trade-off: alamat dengan typo halus ("Jl." vs "Jln") lolos. Untuk
+ * audit anti-double-funding, **same name + same address** adalah sinyal
+ * yang lebih bermakna daripada nama-saja yang menghasilkan banyak noise.
  *
  * Cross-year is the default: the same recipient receiving a grant in
  * multiple years is precisely the signal an auditor wants to see.
@@ -38,13 +44,16 @@ class DuplicateDetector
             'anggaran_sebelum', 'anggaran_disetujui',
         ]);
 
-        // Group by NORMALIZED NAME only — not name+address. Real-world data
-        // ("Jl." vs "Jln", "No." vs "Nomor") makes addresses too noisy to be
-        // a reliable secondary key, and over-flagging is the safer error for
-        // an anti-double-funding tool (auditor verifies manually). Distinct
-        // addresses within a group are surfaced so the auditor can judge
-        // whether it's truly the same recipient.
-        $grouped = $rows->groupBy(fn (Pengajuan $p) => $p->nama_penerima_normalized);
+        // Skip rows tanpa alamat: tanpa alamat tidak mungkin tahu apakah
+        // dua row dengan nama sama itu memang penerima yang sama atau
+        // entitas berbeda yang kebetulan satu nama (mis. "MDT MIFTAHUL
+        // HUDA" yang dipakai banyak madrasah). Lebih baik tidak flag
+        // daripada salah flag. Auditor harus isi alamat dulu kalau mau
+        // dicek.
+        $withAddress = $rows->filter(fn (Pengajuan $p) => ! empty($p->alamat_penerima_normalized));
+
+        // Group by NORMALIZED name + NORMALIZED address.
+        $grouped = $withAddress->groupBy(fn (Pengajuan $p) => $p->nama_penerima_normalized.'|'.$p->alamat_penerima_normalized);
 
         return $grouped
             ->filter(function (Collection $group) use ($crossYear) {
@@ -64,17 +73,12 @@ class DuplicateDetector
             ->map(function (Collection $group) {
                 $first = $group->first();
 
-                // Surface every distinct address variant in the group so an
-                // auditor can eyeball whether it's genuinely one recipient.
-                $alamatVariants = $group->pluck('alamat_penerima')
-                    ->filter()
-                    ->unique()
-                    ->values()
-                    ->all();
-
+                // Semua row di group berbagi alamat ternormalisasi yang sama.
+                // Ambil alamat dari row pertama (versi asli, belum ter-
+                // normalisasi) supaya auditor lihat label aslinya.
                 return [
                     'nama' => $first->nama_penerima,
-                    'alamat' => $alamatVariants ? implode(' | ', $alamatVariants) : null,
+                    'alamat' => $first->alamat_penerima,
                     'count' => $group->count(),
                     'tahun' => $group->pluck('tahun')->unique()->sort()->values()->all(),
                     'total_anggaran' => (int) $group->sum(
