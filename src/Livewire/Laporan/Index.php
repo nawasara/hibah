@@ -22,6 +22,18 @@ class Index extends Component
     /** Cross-year toggle for the duplicate report. */
     public bool $crossYear = true;
 
+    /**
+     * Pengajuan IDs in the currently inspected duplicate group.
+     * Null/empty = modal closed. We snapshot the IDs at click time rather
+     * than re-derive from name/address keys, so the modal stays consistent
+     * even when the user toggles crossYear/tahunFilter while it's open.
+     *
+     * @var list<int>
+     */
+    public array $detailIds = [];
+
+    public ?string $detailName = null;
+
     #[Computed]
     public function tahunOptions(): array
     {
@@ -65,6 +77,57 @@ class Index extends Component
         $filename = 'hibah-'.($tahun ?? 'semua').'-'.now()->format('Ymd_His').'.xlsx';
 
         return Excel::download(new PengajuanExport($tahun), $filename);
+    }
+
+    /**
+     * Open the per-duplicate-group detail modal. The auditor sees the
+     * top-level row "MDT MIFTAHUL HUDA · 33×" then drills into the
+     * individual pengajuan rows to verify what's actually shared.
+     *
+     * Accepts row index (int) — names can contain quote/slash chars that
+     * break wire:click syntax after Blade encoding. We resolve index →
+     * group → ids here and snapshot the ids so the modal isn't affected
+     * by subsequent filter toggles.
+     */
+    public function viewDetail(int $index): void
+    {
+        $row = $this->duplikat->get($index);
+        if (! $row) {
+            return;
+        }
+
+        $this->detailIds = $row['ids'];
+        $this->detailName = $row['nama'];
+        // Modal nawasara-ui listen ke 'modal-open:<id>' (id di event NAME,
+        // bukan payload).
+        $this->dispatch('modal-open:hibah-duplikat-detail');
+    }
+
+    public function closeDetail(): void
+    {
+        $this->detailIds = [];
+        $this->detailName = null;
+    }
+
+    /**
+     * Pengajuan rows for the currently inspected duplicate group, loaded
+     * from the snapshot IDs set at click time.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Pengajuan>
+     */
+    #[Computed]
+    public function duplikatDetail()
+    {
+        if (empty($this->detailIds)) {
+            return collect();
+        }
+
+        return Pengajuan::query()
+            ->with(['opd:id,name', 'kategori:id,nama'])
+            ->whereIn('id', $this->detailIds)
+            ->orderBy('tahun')
+            ->orderBy('id')
+            ->get();
     }
 
     public function render()

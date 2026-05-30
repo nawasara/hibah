@@ -1,16 +1,14 @@
 <div>
     <x-slot name="breadcrumb">
-        <livewire:nawasara-ui.shared-components.breadcrumb
-            :items="[['label' => 'Hibah & Bansos', 'url' => '#'], ['label' => 'Pengajuan']]" />
+        <livewire:nawasara-ui.shared-components.breadcrumb :items="[['label' => 'Hibah & Bansos', 'url' => '#'], ['label' => 'Pengajuan']]" />
     </x-slot>
 
     @php $counts = $this->statusCounts; @endphp
 
     <x-nawasara-ui::page.container>
-        <x-nawasara-ui::page-header
-            title="Pengajuan Hibah & Bansos"
+        <x-nawasara-ui::page-header title="Pengajuan Hibah & Bansos"
             description="Daftar usulan hibah/bansos. Operator melihat data OPD-nya; admin melihat seluruh OPD."
-            :count="$this->rows->total().' total'">
+            :count="$this->rows->total() . ' total'">
             @can('hibah.pengajuan.create')
                 <x-nawasara-ui::button color="primary" :href="route('hibah.pengajuan.create')" wire:navigate>
                     <x-slot:icon><x-lucide-plus class="size-4" /></x-slot:icon>
@@ -21,14 +19,12 @@
 
         {{-- Status summary --}}
         <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-            <x-nawasara-ui::stat-card compact label="Diajukan"
-                :value="$counts['diajukan'] ?? 0" color="warning" icon="lucide-file-clock" />
-            <x-nawasara-ui::stat-card compact label="Disetujui"
-                :value="$counts['disetujui'] ?? 0" color="success" icon="lucide-circle-check" />
-            <x-nawasara-ui::stat-card compact label="Ditolak"
-                :value="$counts['ditolak'] ?? 0" color="danger" icon="lucide-circle-x" />
-            <x-nawasara-ui::stat-card compact label="Selesai"
-                :value="$counts['selesai'] ?? 0" color="info" icon="lucide-flag" />
+            <x-nawasara-ui::stat-card compact label="Diajukan" :value="$counts['diajukan'] ?? 0" color="warning"
+                icon="lucide-file-clock" />
+            <x-nawasara-ui::stat-card compact label="Disetujui" :value="$counts['disetujui'] ?? 0" color="success"
+                icon="lucide-circle-check" />
+            <x-nawasara-ui::stat-card compact label="Ditolak" :value="$counts['ditolak'] ?? 0" color="danger" icon="lucide-circle-x" />
+            <x-nawasara-ui::stat-card compact label="Selesai" :value="$counts['selesai'] ?? 0" color="info" icon="lucide-flag" />
         </div>
 
         {{-- Toolbar --}}
@@ -47,46 +43,30 @@
         <div class="space-y-2 mb-4">
             <div class="flex flex-col md:flex-row md:flex-nowrap md:items-center gap-2">
                 <div class="flex flex-wrap items-center gap-2 shrink-0">
-                    <x-nawasara-ui::filter-panel
-                        label="Filter"
-                        :state="[
-                            'tahunFilter' => $tahunFilter,
-                            'statusFilter' => $statusFilter,
-                            'opdFilter' => $opdFilter,
-                            'kategoriFilter' => $kategoriFilter,
-                        ]"
-                        :multiple="['opdFilter', 'kategoriFilter']"
-                        :labels="[
-                            'tahunFilter' => $tahunOptions,
-                            'statusFilter' => $statusLabels,
-                            'opdFilter' => $opdOptions,
-                            'kategoriFilter' => $kategoriOptions,
-                        ]"
+                    <x-nawasara-ui::filter-panel label="Filter" :state="[
+                        'tahunFilter' => $tahunFilter,
+                        'statusFilter' => $statusFilter,
+                        'opdFilter' => $opdFilter,
+                        'kategoriFilter' => $kategoriFilter,
+                    ]" :multiple="['opdFilter', 'kategoriFilter']" :labels="[
+                        'tahunFilter' => $tahunOptions,
+                        'statusFilter' => $statusLabels,
+                        'opdFilter' => $opdOptions,
+                        'kategoriFilter' => $kategoriOptions,
+                    ]"
                         :dimensions="[
                             'tahunFilter' => 'Tahun',
                             'statusFilter' => 'Status',
                             'opdFilter' => 'OPD',
                             'kategoriFilter' => 'Kategori',
                         ]">
-                        <x-nawasara-ui::filter-group
-                            label="Tahun"
-                            model="tahunFilter"
-                            :items="$tahunOptions"
+                        <x-nawasara-ui::filter-group label="Tahun" model="tahunFilter" :items="$tahunOptions"
                             icon="lucide-calendar" />
-                        <x-nawasara-ui::filter-group
-                            label="Status"
-                            model="statusFilter"
-                            :items="$statusLabels"
+                        <x-nawasara-ui::filter-group label="Status" model="statusFilter" :items="$statusLabels"
                             icon="lucide-circle-check" />
-                        <x-nawasara-ui::filter-group
-                            label="OPD"
-                            model="opdFilter"
-                            :items="$opdOptions"
+                        <x-nawasara-ui::filter-group label="OPD" model="opdFilter" :items="$opdOptions"
                             icon="lucide-building-2" />
-                        <x-nawasara-ui::filter-group
-                            label="Kategori"
-                            model="kategoriFilter"
-                            :items="$kategoriOptions"
+                        <x-nawasara-ui::filter-group label="Kategori" model="kategoriFilter" :items="$kategoriOptions"
                             icon="lucide-tags" />
                     </x-nawasara-ui::filter-panel>
                 </div>
@@ -107,8 +87,7 @@
         </div>
 
         {{-- Table --}}
-        <x-nawasara-ui::table stickyLast
-            :headers="['Tahun', 'OPD', 'Penerima', 'Kategori', 'Anggaran usulan', 'Status', '']">
+        <x-nawasara-ui::table stickyLast :headers="['Tahun', 'OPD', 'Penerima', 'Kategori', 'Anggaran usulan', 'Status', '']">
             <x-slot:table>
                 @forelse ($this->rows as $row)
                     <tr class="hover:bg-neutral-50 dark:hover:bg-neutral-700/40">
@@ -132,16 +111,14 @@
                             <x-nawasara-ui::badge :color="$row->statusColor()">{{ $row->statusLabel() }}</x-nawasara-ui::badge>
                         </td>
                         <td class="px-4 py-2.5 text-right">
-                            <x-nawasara-ui::icon-button icon="eye" tooltip="Detail"
+                            <x-nawasara-ui::icon-button icon="eye" tooltip="Detail" placement="left"
                                 :href="route('hibah.pengajuan.detail', $row)" wire:navigate />
                         </td>
                     </tr>
                 @empty
                     <tr>
                         <td colspan="7" class="px-4 py-6">
-                            <x-nawasara-ui::empty-state inline
-                                icon="lucide-file-x"
-                                title="Belum ada pengajuan"
+                            <x-nawasara-ui::empty-state inline icon="lucide-file-x" title="Belum ada pengajuan"
                                 description="Klik 'Tambah Pengajuan' untuk meng-entry usulan hibah pertama." />
                         </td>
                     </tr>
