@@ -19,8 +19,16 @@ class HibahReporter
      */
     public function perTahun(): Collection
     {
+        // "Usulan" = nominal entered by OPD. The 2024 Excel layout only
+        // populated "Anggaran Setelah Perubahan" (post-revision), leaving
+        // "Sebelum" zero — coalesce to setelah when sebelum is missing.
+        // "Disetujui" prefers the explicit approval column; absent that,
+        // fall back to the post-revision figure since SK-bearing rows are
+        // marked DISETUJUI on import (see PengajuanImport::importRow).
         $base = Pengajuan::query()
-            ->selectRaw('tahun, count(*) as jumlah, sum(anggaran_sebelum) as usulan, sum(coalesce(anggaran_disetujui,0)) as disetujui')
+            ->selectRaw('tahun, count(*) as jumlah,
+                sum(coalesce(nullif(anggaran_sebelum,0), anggaran_setelah, 0)) as usulan,
+                sum(coalesce(anggaran_disetujui, anggaran_setelah, anggaran_sebelum, 0)) as disetujui')
             ->groupBy('tahun')
             ->orderByDesc('tahun')
             ->get();
@@ -53,7 +61,9 @@ class HibahReporter
         return Pengajuan::query()
             ->join('nawasara_registry_opd as o', 'o.id', '=', 'nawasara_hibah_pengajuan.opd_id')
             ->when($tahun, fn ($q) => $q->where('tahun', $tahun))
-            ->selectRaw('o.name as opd, count(*) as jumlah, sum(anggaran_sebelum) as usulan, sum(coalesce(anggaran_disetujui,0)) as disetujui')
+            ->selectRaw('o.name as opd, count(*) as jumlah,
+                sum(coalesce(nullif(anggaran_sebelum,0), anggaran_setelah, 0)) as usulan,
+                sum(coalesce(anggaran_disetujui, anggaran_setelah, anggaran_sebelum, 0)) as disetujui')
             ->groupBy('o.name')
             ->orderByDesc('disetujui')
             ->get()
