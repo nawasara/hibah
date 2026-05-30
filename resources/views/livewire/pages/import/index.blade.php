@@ -32,10 +32,13 @@
                 <x-nawasara-ui::page.card>
                     <p class="text-sm font-medium text-neutral-800 dark:text-neutral-100 mb-3">2. Unggah & import</p>
                     <form wire:submit="import" class="space-y-4">
-                        <div>
-                            <label class="block text-sm text-neutral-600 dark:text-neutral-300 mb-1">Tahun</label>
-                            <input type="number" wire:model="tahun" min="2000" max="2100"
-                                class="w-40 rounded-lg border-gray-300 dark:border-neutral-600 dark:bg-neutral-800 text-sm" />
+                        <div class="w-40">
+                            <x-nawasara-ui::form.input
+                                type="number"
+                                label="Tahun"
+                                min="2000"
+                                max="2100"
+                                wire:model="tahun" />
                             @error('tahun') <span class="text-xs text-rose-500">{{ $message }}</span> @enderror
                             <p class="text-xs text-neutral-400 mt-1">Semua baris akan distempel tahun ini.</p>
                         </div>

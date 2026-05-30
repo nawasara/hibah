@@ -9,13 +9,14 @@
             title="Laporan Hibah & Bansos"
             description="Rekap per tahun, per OPD, realisasi triwulan, dan deteksi penerima duplikat.">
             @can('hibah.laporan.export')
-                <select wire:model.live="tahunFilter"
-                    class="rounded-lg border-gray-300 dark:border-neutral-600 dark:bg-neutral-800 text-sm">
-                    <option value="">Semua tahun</option>
-                    @foreach ($this->tahunOptions as $val => $label)
-                        <option value="{{ $val }}">{{ $label }}</option>
-                    @endforeach
-                </select>
+                @php
+                    $tahunItems = ['all' => 'Semua tahun'] + $this->tahunOptions;
+                    $tahunLabel = $tahunFilter !== '' ? "Tahun · {$tahunFilter}" : 'Semua tahun';
+                @endphp
+                <x-nawasara-ui::filter-dropdown
+                    :label="$tahunLabel"
+                    :items="$tahunItems"
+                    model="tahunFilter" />
                 <x-nawasara-ui::button wire:click="export" color="success" variant="outline">
                     <x-slot:icon><x-lucide-file-spreadsheet class="size-4" /></x-slot:icon>
                     Export Excel
@@ -85,12 +86,10 @@
 
         {{-- Deteksi Duplikat --}}
         @elseif ($tab === 'duplikat')
-            <div class="mb-3 flex items-center gap-2">
-                <label class="inline-flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400 cursor-pointer">
-                    <input type="checkbox" wire:model.live="crossYear"
-                        class="rounded border-neutral-300 dark:border-neutral-600 dark:bg-neutral-800" />
-                    Bandingkan lintas tahun
-                </label>
+            <div class="mb-3 flex items-center gap-3">
+                <x-nawasara-ui::form.checkbox
+                    wire:model.live="crossYear"
+                    label="Bandingkan lintas tahun" />
                 <span class="text-xs text-neutral-400">— penerima dengan nama+alamat yang dinormalisasi sama.</span>
             </div>
 

@@ -19,27 +19,30 @@ class Form extends Component
     public ?int $kategori_id = null;
     public string $peruntukan = 'hibah';
 
-    // Identitas usulan
-    public string $pengusul = '';
-    public string $dapil = '';
+    // Identitas usulan — string props are nullable because the underlying
+    // columns are nullable and historical import rows have null values. A
+    // non-null string type would TypeError on $this->fill() during edit.
+    public ?string $pengusul = null;
+    public ?string $dapil = null;
     public bool $lintas_dapil = false;
-    public string $kamus_usulan = '';
+    public ?string $kamus_usulan = null;
     public ?string $tanggal_proposal = null;
 
     // Program
-    public string $program = '';
-    public string $kegiatan = '';
-    public string $sub_kegiatan = '';
+    public ?string $program = null;
+    public ?string $kegiatan = null;
+    public ?string $sub_kegiatan = null;
 
-    // Penerima
-    public string $nama_penerima = '';
-    public string $alamat_penerima = '';
+    // Penerima — nama_penerima required by validation, but keep nullable type
+    // so an empty hydrate doesn't crash before validation runs.
+    public ?string $nama_penerima = null;
+    public ?string $alamat_penerima = null;
 
     // Anggaran usulan
     public int $anggaran_sebelum = 0;
     public ?int $anggaran_setelah = null;
 
-    public string $keterangan = '';
+    public ?string $keterangan = null;
 
     public function mount(?Pengajuan $pengajuan = null): void
     {

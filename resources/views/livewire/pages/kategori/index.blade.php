@@ -54,9 +54,11 @@
         {{-- Form modal --}}
         <x-nawasara-ui::modal id="hibah-kategori-form" :title="$editId ? 'Edit Kategori' : 'Tambah Kategori'" maxWidth="md">
             <form wire:submit="save">
-                <label class="block text-sm text-neutral-600 dark:text-neutral-300 mb-1">Nama Kategori</label>
-                <input type="text" wire:model="nama" autofocus
-                    class="w-full rounded-lg border-gray-300 dark:border-neutral-600 dark:bg-neutral-800 text-sm" />
+                <x-nawasara-ui::form.input
+                    type="text"
+                    label="Nama Kategori"
+                    wire:model="nama"
+                    autofocus />
                 @error('nama') <span class="text-xs text-rose-500">{{ $message }}</span> @enderror
             </form>
 
