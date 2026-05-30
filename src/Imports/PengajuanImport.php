@@ -139,6 +139,161 @@ class PengajuanImport implements ToCollection, WithChunkReading
         fclose($fh);
     }
 
+    /**
+     * Stream a large xlsx straight without going through CSV. Uses pure
+     * XMLReader (no SimpleXMLElement / readOuterXML), which is the only
+     * reliable way for huge files — Maatwebsite/PhpSpreadsheet OOMs on
+     * any non-trivial xlsx (the 2025 hibah file: 34 MB → 267 MB unzipped
+     * → 4+ GB RAM, then fatal). The prior xlsx_to_csv converter that
+     * combined readOuterXML() with $reader->next() silently DROPPED rows
+     * (3,846 real → 1,924 written) — never use that pattern again.
+     */
+    public function importLargeXlsx(string $path): void
+    {
+        if (! is_file($path)) {
+            throw new \RuntimeException("File not found: {$path}");
+        }
+
+        $tmp = sys_get_temp_dir().'/hibah_xlsx_'.uniqid();
+        @mkdir($tmp, 0777, true);
+
+        $zip = new \ZipArchive;
+        if ($zip->open($path) !== true) {
+            throw new \RuntimeException("Cannot open xlsx: {$path}");
+        }
+        $zip->extractTo($tmp);
+        $zip->close();
+
+        try {
+            $strings = $this->loadSharedStrings($tmp);
+            $sheets = glob($tmp.'/xl/worksheets/*.xml');
+            if (! $sheets) {
+                throw new \RuntimeException('No worksheet found in xlsx');
+            }
+            $this->streamSheetIntoImport($sheets[0], $strings);
+        } finally {
+            $this->rrmdir($tmp);
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function loadSharedStrings(string $extractedRoot): array
+    {
+        $strings = [];
+        $path = $extractedRoot.'/xl/sharedStrings.xml';
+        if (! is_file($path)) {
+            return $strings;
+        }
+
+        $r = new \XMLReader;
+        $r->open($path);
+        $cur = '';
+        $inSi = false;
+        while ($r->read()) {
+            if ($r->nodeType === \XMLReader::ELEMENT && $r->localName === 'si') {
+                $inSi = true;
+                $cur = '';
+            } elseif ($r->nodeType === \XMLReader::END_ELEMENT && $r->localName === 'si') {
+                $strings[] = $cur;
+                $inSi = false;
+            } elseif ($inSi && $r->nodeType === \XMLReader::TEXT) {
+                $cur .= $r->value;
+            }
+        }
+        $r->close();
+
+        return $strings;
+    }
+
+    /**
+     * @param  list<string>  $strings
+     */
+    protected function streamSheetIntoImport(string $sheetPath, array $strings): void
+    {
+        $colIdx = static function (string $ref): int {
+            $col = preg_replace('/[0-9]+/', '', $ref);
+            $n = 0;
+            for ($i = 0, $len = strlen($col); $i < $len; $i++) {
+                $n = $n * 26 + (ord($col[$i]) - 64);
+            }
+
+            return $n - 1;
+        };
+
+        $r = new \XMLReader;
+        $r->open($sheetPath);
+
+        $inRow = false;
+        $inCell = false;
+        $inV = false;
+        $cellRef = '';
+        $cellType = '';
+        $cellVal = '';
+        $rowCells = [];
+
+        while ($r->read()) {
+            if ($r->nodeType === \XMLReader::ELEMENT) {
+                if ($r->localName === 'row') {
+                    $inRow = true;
+                    $rowCells = [];
+                } elseif ($inRow && $r->localName === 'c') {
+                    $inCell = true;
+                    $cellRef = $r->getAttribute('r') ?? '';
+                    $cellType = $r->getAttribute('t') ?? '';
+                    $cellVal = '';
+                } elseif ($inCell && $r->localName === 'v') {
+                    $inV = true;
+                }
+            } elseif ($r->nodeType === \XMLReader::TEXT && $inV) {
+                $cellVal .= $r->value;
+            } elseif ($r->nodeType === \XMLReader::END_ELEMENT) {
+                if ($r->localName === 'v') {
+                    $inV = false;
+                } elseif ($r->localName === 'c') {
+                    $inCell = false;
+                    if ($cellVal !== '') {
+                        $val = $cellType === 's'
+                            ? ($strings[(int) $cellVal] ?? '')
+                            : $cellVal;
+                        $rowCells[$colIdx($cellRef)] = $val;
+                    }
+                } elseif ($r->localName === 'row') {
+                    $inRow = false;
+                    if (empty($rowCells)) {
+                        continue;
+                    }
+
+                    // Build dense 0..max array so importRow() sees column
+                    // indices line up with PengajuanImport column map.
+                    $maxIdx = max(array_keys($rowCells));
+                    $line = [];
+                    for ($i = 0; $i <= $maxIdx; $i++) {
+                        $line[$i] = $rowCells[$i] ?? '';
+                    }
+                    $this->importRow($line);
+                }
+            }
+        }
+        $r->close();
+    }
+
+    protected function rrmdir(string $dir): void
+    {
+        if (! is_dir($dir)) {
+            return;
+        }
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST,
+        );
+        foreach ($it as $f) {
+            $f->isDir() ? rmdir($f) : unlink($f);
+        }
+        rmdir($dir);
+    }
+
     protected function resolveOpd(string $name): int
     {
         $name = $name !== '' ? $name : 'TIDAK DIKETAHUI';
