@@ -86,11 +86,20 @@
 
         {{-- Deteksi Duplikat --}}
         @elseif ($tab === 'duplikat')
-            <div class="mb-3 flex items-center gap-3">
+            <div class="mb-3 flex flex-wrap items-center gap-4">
                 <x-nawasara-ui::form.checkbox
                     wire:model.live="crossYear"
                     label="Bandingkan lintas tahun" />
-                <span class="text-xs text-neutral-400">— penerima dengan nama+alamat yang dinormalisasi sama.</span>
+                <x-nawasara-ui::form.checkbox
+                    wire:model.live="requireAddress"
+                    label="Wajib alamat sama" />
+                <span class="text-xs text-neutral-500 dark:text-neutral-400">
+                    @if ($requireAddress)
+                        — kelompokkan berdasarkan nama+alamat (akurat, abaikan row tanpa alamat).
+                    @else
+                        — kelompokkan nama saja (cocok untuk data tanpa alamat; perlu verifikasi manual).
+                    @endif
+                </span>
             </div>
 
             {{-- stickyLast: kolom action selalu kelihatan di edge kanan.

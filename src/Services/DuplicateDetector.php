@@ -24,12 +24,19 @@ use Nawasara\Hibah\Models\Pengajuan;
 class DuplicateDetector
 {
     /**
+     * @param  bool  $requireAddress  When true (default), only rows whose
+     *   alamat_penerima_normalized is populated participate — and grouping
+     *   keys on nama+alamat to avoid false positives from common
+     *   institution names ("MDT MIFTAHUL HUDA"). When false, falls back to
+     *   nama-only grouping so years like 2025 (where OPD staff left
+     *   addresses blank in Excel) still surface potential duplicates for
+     *   manual review.
      * @return Collection<int, array{
      *   nama: string, alamat: ?string, count: int,
      *   tahun: list<int>, total_anggaran: int, ids: list<int>
      * }>
      */
-    public function detect(bool $crossYear = true, ?int $tahun = null): Collection
+    public function detect(bool $crossYear = true, ?int $tahun = null, bool $requireAddress = true): Collection
     {
         // OpdScope still applies — an operator sees duplicates only within
         // their own OPD. Admin (no operator row) sees across all OPD, which
@@ -41,19 +48,20 @@ class DuplicateDetector
         $rows = $query->get([
             'id', 'tahun', 'nama_penerima', 'nama_penerima_normalized',
             'alamat_penerima', 'alamat_penerima_normalized',
-            'anggaran_sebelum', 'anggaran_disetujui',
+            'anggaran_sebelum', 'anggaran_setelah', 'anggaran_disetujui',
         ]);
 
-        // Skip rows tanpa alamat: tanpa alamat tidak mungkin tahu apakah
-        // dua row dengan nama sama itu memang penerima yang sama atau
-        // entitas berbeda yang kebetulan satu nama (mis. "MDT MIFTAHUL
-        // HUDA" yang dipakai banyak madrasah). Lebih baik tidak flag
-        // daripada salah flag. Auditor harus isi alamat dulu kalau mau
-        // dicek.
-        $withAddress = $rows->filter(fn (Pengajuan $p) => ! empty($p->alamat_penerima_normalized));
-
-        // Group by NORMALIZED name + NORMALIZED address.
-        $grouped = $withAddress->groupBy(fn (Pengajuan $p) => $p->nama_penerima_normalized.'|'.$p->alamat_penerima_normalized);
+        if ($requireAddress) {
+            // Skip rows without alamat: cannot prove same-recipient without
+            // it. False-negative is preferred over false-positive.
+            $candidates = $rows->filter(fn (Pengajuan $p) => ! empty($p->alamat_penerima_normalized));
+            $grouped = $candidates->groupBy(fn (Pengajuan $p) => $p->nama_penerima_normalized.'|'.$p->alamat_penerima_normalized);
+        } else {
+            // Looser mode for years where OPD didn't populate addresses
+            // (2025). Auditor must manually verify each hit. Group by
+            // nama only; surface the row whether alamat is null or not.
+            $grouped = $rows->groupBy(fn (Pengajuan $p) => $p->nama_penerima_normalized);
+        }
 
         return $grouped
             ->filter(function (Collection $group) use ($crossYear) {
@@ -82,7 +90,10 @@ class DuplicateDetector
                     'count' => $group->count(),
                     'tahun' => $group->pluck('tahun')->unique()->sort()->values()->all(),
                     'total_anggaran' => (int) $group->sum(
-                        fn (Pengajuan $p) => $p->anggaran_disetujui ?? $p->anggaran_sebelum
+                        fn (Pengajuan $p) => $p->anggaran_disetujui
+                            ?? $p->anggaran_setelah
+                            ?? $p->anggaran_sebelum
+                            ?? 0
                     ),
                     'ids' => $group->pluck('id')->all(),
                 ];

@@ -23,6 +23,14 @@ class Index extends Component
     public bool $crossYear = true;
 
     /**
+     * When true, only rows with a populated address are eligible for
+     * duplicate detection (avoids false positives from common names like
+     * "MDT MIFTAHUL HUDA"). When false, falls back to name-only grouping —
+     * useful for years where OPD left the address column blank (e.g. 2025).
+     */
+    public bool $requireAddress = true;
+
+    /**
      * Pengajuan IDs in the currently inspected duplicate group.
      * Null/empty = modal closed. We snapshot the IDs at click time rather
      * than re-derive from name/address keys, so the modal stays consistent
@@ -66,6 +74,7 @@ class Index extends Component
         return app(DuplicateDetector::class)->detect(
             crossYear: $this->crossYear,
             tahun: $this->tahunFilter !== '' ? (int) $this->tahunFilter : null,
+            requireAddress: $this->requireAddress,
         );
     }
 
