@@ -10,6 +10,7 @@ use Nawasara\Hibah\Imports\PengajuanImport;
  * Import historical hibah data from the OPD's yearly Excel form.
  *
  *   php artisan hibah:import "path/to/FORM 2024.xlsx" 2024
+ *   php artisan hibah:import "path/to/FORM 2025.csv" 2025 --csv
  *
  * The Excel layout (confirmed identical across 2024/2026):
  *   row 1  — main headers (No, Tahun, Kategori, ... Keterangan)
@@ -18,10 +19,15 @@ use Nawasara\Hibah\Imports\PengajuanImport;
  *
  * Because of the two-row header, we DON'T use WithHeadingRow — the import
  * maps by zero-based column index instead (see PengajuanImport).
+ *
+ * --csv streams a pre-converted CSV row-by-row via fgetcsv (importCsv),
+ * which is the ONLY memory-safe path for the big files. The 2025 xlsx
+ * (34 MB → 267 MB unzipped) OOMs PhpSpreadsheet, so always feed its CSV
+ * with --csv. See CLAUDE.md §13.c.
  */
 class ImportCommand extends Command
 {
-    protected $signature = 'hibah:import {file : Path to the .xlsx file} {tahun : Year to stamp on imported rows} {--dry : Parse and report without writing}';
+    protected $signature = 'hibah:import {file : Path to the .xlsx (or .csv with --csv) file} {tahun : Year to stamp on imported rows} {--csv : Stream a pre-converted CSV row-by-row (memory-safe; use for large files)} {--dry : Parse and report without writing}';
 
     protected $description = 'Import historical hibah/bansos data from an OPD Excel form';
 
@@ -30,6 +36,7 @@ class ImportCommand extends Command
         $file = $this->argument('file');
         $tahun = (int) $this->argument('tahun');
         $dry = (bool) $this->option('dry');
+        $csv = (bool) $this->option('csv');
 
         if (! is_file($file)) {
             $this->error("File tidak ditemukan: {$file}");
@@ -37,11 +44,16 @@ class ImportCommand extends Command
             return self::FAILURE;
         }
 
-        $this->info(($dry ? '[DRY RUN] ' : '')."Importing {$file} as tahun {$tahun}...");
+        $mode = $csv ? 'CSV stream' : 'xlsx';
+        $this->info(($dry ? '[DRY RUN] ' : '')."Importing {$file} ({$mode}) as tahun {$tahun}...");
 
         $import = new PengajuanImport($tahun, $dry);
 
-        Excel::import($import, $file);
+        if ($csv) {
+            $import->importCsv($file);
+        } else {
+            Excel::import($import, $file);
+        }
 
         $this->newLine();
         $this->table(
