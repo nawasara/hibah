@@ -122,6 +122,26 @@ class Pengajuan extends Model
         return $this->belongsTo(\App\Models\User::class, 'created_by');
     }
 
+    /**
+     * Free-text search over recipient / proposer / program. Mirrors the
+     * Pengajuan index filter. Tenant scoping is automatic via ScopedToOpd's
+     * global scope — search() composes on top of an already-scoped query.
+     */
+    public function scopeSearch($query, ?string $term)
+    {
+        if (! $term) {
+            return $query;
+        }
+
+        $term = '%'.$term.'%';
+
+        return $query->where(function ($q) use ($term) {
+            $q->where('nama_penerima', 'like', $term)
+                ->orWhere('pengusul', 'like', $term)
+                ->orWhere('program', 'like', $term);
+        });
+    }
+
     public function canTransitionTo(string $status): bool
     {
         return in_array($status, self::TRANSITIONS[$this->status] ?? [], true);

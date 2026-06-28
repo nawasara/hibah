@@ -33,6 +33,7 @@
         "illuminate/support": "^10.0|^12.0",
         "spatie/laravel-permission": "^6.0",
         "nawasara/ui": "*",
+        "nawasara/search": "*",
         "nawasara/registry": "^0.2 || dev-main",
         "livewire/livewire": "^3.0",
         "maatwebsite/excel": "^3.1"
