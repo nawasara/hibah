@@ -9,6 +9,7 @@ return [
         'workspace' => 'hibah',
         'label' => 'Hibah & Bansos',
         'icon' => 'lucide-hand-coins',
+        'group' => 'Layanan',
         'url' => '',
         'permission' => 'hibah.pengajuan.view',
         'submenu' => [
