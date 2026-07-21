@@ -27,13 +27,13 @@ class Index extends Component
         $kategori = Kategori::findOrFail($id);
         $this->editId = $kategori->id;
         $this->nama = $kategori->nama;
-        $this->dispatch('open-modal', 'hibah-kategori-form');
+        $this->dispatch('modal-open:hibah-kategori-form');
     }
 
     public function create(): void
     {
         $this->reset(['editId', 'nama']);
-        $this->dispatch('open-modal', 'hibah-kategori-form');
+        $this->dispatch('modal-open:hibah-kategori-form');
     }
 
     public function save(): void
@@ -53,7 +53,7 @@ class Index extends Component
         );
 
         $this->reset(['editId', 'nama']);
-        $this->dispatch('close-modal', 'hibah-kategori-form');
+        $this->dispatch('modal-close:hibah-kategori-form');
         $this->dispatch('toast', ['type' => 'success', 'message' => 'Kategori tersimpan.']);
     }
 
