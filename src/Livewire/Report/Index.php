@@ -192,7 +192,7 @@ class Index extends Component
 
     public function render()
     {
-        return view('nawasara-hibah::livewire.pages.laporan.index')
+        return view('nawasara-hibah::livewire.pages.report.index')
             ->layout('nawasara-ui::components.layouts.app');
     }
 }
