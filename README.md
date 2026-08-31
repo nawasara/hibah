@@ -8,7 +8,7 @@ diambil di rapat, di luar sistem, dan aplikasi mencatat hasilnya. Karena itu
 tidak ada alur setujui/tolak — yang masih berubah setelah pengesahan adalah
 **pencairannya**.
 
-## Status v0.2.0
+## Status v0.3.0
 
 | Fitur | Status |
 |---|---|
@@ -17,6 +17,7 @@ tidak ada alur setujui/tolak — yang masih berubah setelah pengesahan adalah
 | Status pencairan dihitung dari realisasi | ✅ siap |
 | Realisasi per triwulan | ✅ siap |
 | Bukti monev | ✅ siap |
+| **Master penerima + halaman Penerima lintas peruntukan** | ✅ siap — v0.3.0 |
 | Deteksi penerima ganda (hibah & bansos) | ✅ siap |
 | Laporan per peruntukan + ekspor Excel | ✅ siap |
 | Impor Excel + template | ✅ siap |
@@ -29,12 +30,15 @@ tidak ada alur setujui/tolak — yang masih berubah setelah pengesahan adalah
 
 ## Keputusan yang mudah dibatalkan tanpa tahu alasannya
 
-### 1. Tiga menu di atas satu tabel
+### 1. Tiga seksi menu di atas satu tabel
 
 Hibah, bansos, dan bantuan keuangan berbagi **satu tabel**, dibedakan kolom
-`purpose`. Menunya tetap dipisah tiga karena staf hibah dan staf bansos orang
-yang berbeda, dengan berkas dan atasan berbeda. Satu tabel adalah keputusan
+`purpose`. Menunya tetap dipisah karena staf hibah dan staf bansos orang yang
+berbeda, dengan berkas dan atasan berbeda. Satu tabel adalah keputusan
 penyimpanan; tidak ada alasan itu bocor ke layar mereka.
+
+Ketiganya **seksi di dalam satu workspace**, bukan tiga workspace terpisah —
+lihat §Menu untuk alasannya.
 
 ⚠️ **`purpose` adalah segmen path, bukan query string** —
 `hibah/bansos/uang`, bukan `?purpose=bansos`.
@@ -116,7 +120,35 @@ separuh.
 ⚠️ **`TemplateExport` menentukan bentuk berkas yang dikirim balik OPD.**
 Perbarui template **sebelum** meminta data, bukan sesudah.
 
-### 6. `pd` ada di enum, tidak di konstanta
+### 6. Penerima adalah entitas, dan identitasnya nama + alamat
+
+Sebelum v0.3.0 penerima hanya teks di tiap usulan, jadi madrasah yang
+menerima tiga tahun berturut-turut adalah tiga teks terpisah yang kebetulan
+sama. `nawasara_hibah_recipients` menjadikannya entitas; usulan menunjuk
+kepadanya.
+
+Penautan terjadi di hook `saving` model, **bukan di tiap pemanggil** — supaya
+berlaku untuk formulir, importer, dan seeder sekaligus. Master yang bolong
+membuat halaman Penerima menampilkan gambaran tidak lengkap, dan itu lebih
+menyesatkan daripada kosong.
+
+⚠️ **Identitasnya nama + alamat, dan kedua bagian itu penting.** Nama saja
+akan menggabungkan banyak "MDT MIFTAHUL HUDA" yang berbeda menjadi satu
+riwayat penerimaan — jawaban keliru yang **terlihat masuk akal**, jauh lebih
+sulit ditemukan daripada baris kembar. Alamat kosong tidak pernah
+digabungkan, dengan alasan yang sama: tanpa alamat tidak ada bukti.
+
+⚠️ **`recipient_name` di usulan sengaja TIDAK dihapus.** Ia menyimpan nama
+seperti tertulis **pada SK** usulan itu, sedangkan master menyimpan identitas
+penerimanya. Master boleh dirapikan ejaannya; usulan harus tetap cocok dengan
+dokumen yang mengesahkannya, karena itulah yang dicocokkan saat diaudit.
+
+Halaman Penerima berada **di luar** grup rute `{purpose}`: nilainya justru
+menampilkan ketiga peruntukan sekaligus — lencana peruntukan memperlihatkan
+penerima yang menarik dari lebih dari satu sumber, yang tidak terbaca dari
+daftar usulan mana pun.
+
+### 7. `pd` ada di enum, tidak di konstanta
 
 Kolom `bk_type` memuat `'pd'`, tetapi `BK_TYPES` **belum** — kepanjangan dan
 keberadaannya belum dipastikan, dan data 2024/2025 hanya memuat ADD.
@@ -138,16 +170,26 @@ melihat apa pun (fail-closed).
 
 ## Menu
 
+SATU workspace dengan seksi di dalamnya — bukan beberapa workspace terpisah,
+karena workspace yang dibuka menyembunyikan workspace lain dari sidebar, dan
+ini tiga hal yang staf bolak-balik antaranya:
+
 ```
 BANTUAN DAERAH
-  Hibah              → Hibah Uang · Hibah Barang · Laporan
-  Bansos             → Bansos Uang · Bansos Barang · Laporan
-  Bantuan Keuangan   → Umum · Khusus · Laporan
-  Pengaturan Hibah   → Impor Data
+  [Hibah]              Hibah Uang · Hibah Barang · Laporan
+  [Bansos]             Bansos Uang · Bansos Barang · Laporan
+  [Bantuan Keuangan]   Umum · Khusus · Laporan
+  [Penerima]           Daftar Penerima      ← lintas peruntukan
+  [Pengaturan]         Impor Data
 ```
 
-⚠️ ID workspace **wajib berbeda**. `WorkspaceManager` menggabungkan workspace
-ber-ID sama dan mengambil label dari yang termuat lebih dulu secara alfabet.
+Penanda seksi = entri submenu tanpa `url`, memakai kunci `section`
+(didukung `nawasara/ui` sejak v0.1.19).
+
+⚠️ Workspace ini **tidak mendeklarasikan permission**. `accessible()`
+menyaring dengan satu nilai itu saja, jadi menggerbanginya dengan
+`hibah.hibah.view` akan menyembunyikan seluruh workspace dari staf yang hanya
+berhak atas bansos. Penggerbangan ada di tiap seksi dan tiap halaman.
 
 ## Permissions
 
@@ -158,6 +200,7 @@ hibah.bantuan-keuangan.view / create / update
 hibah.approved-proposal.view / update
 hibah.disbursement.update
 hibah.report.export
+hibah.recipient.view        # halaman Penerima (lintas peruntukan)
 hibah.import                # admin
 ```
 
