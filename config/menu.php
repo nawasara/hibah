@@ -5,29 +5,32 @@ declare(strict_types=1);
 $prefix = 'hibah';
 
 /*
-| Tiga workspace terpisah di bawah satu grup.
+| SATU workspace "Bantuan Daerah" dengan TIGA seksi di dalamnya.
 |
-| Label lama "Hibah & Bansos" dibuang: ia menyebut dua dari tiga hal yang
-| ditangani paket ini, dan tidak ada label workspace lain di repo ini yang
-| memakai "&".
+| Bukan tiga workspace terpisah: workspace yang dibuka menyembunyikan
+| workspace lain dari sidebar, jadi staf yang sedang di Hibah tidak melihat
+| Bansos sama sekali sampai kembali ke Home. Dengan seksi, ketiganya selalu
+| terlihat dan berpindah cukup satu klik.
 |
-| ⚠️ ID workspace WAJIB berbeda. WorkspaceManager menggabungkan workspace
-| ber-ID sama dan mengambil label/icon dari yang termuat lebih dulu secara
-| alfabet — pernah terjadi: workspace `monitoring` berubah jadi "Database"
-| karena database-monitor termuat duluan.
+| Penanda seksi = entri submenu TANPA `url`, memakai kunci `section`.
+| Didukung sidebar nawasara-ui sejak v0.1.x; paket yang tidak memakainya
+| tidak terpengaruh.
 |
 | Awalan permission tetap `hibah.` mengikuti NAMA PAKET, bukan label
-| workspace. Itu yang membuat sebuah permission dapat ditelusuri kembali ke
-| paket yang mendefinisikannya.
+| workspace — itu yang membuat permission dapat ditelusuri ke paket asalnya.
 */
 
-/** Submenu daftar + laporan untuk satu peruntukan. */
-$menuFor = static function (string $segment, array $children) use ($prefix): array {
-    $items = [];
+/** Satu seksi: judul + halaman-halamannya. */
+$section = static function (string $label, string $icon, string $segment, array $children) use ($prefix): array {
+    $items = [[
+        'section' => $label,
+        'icon' => $icon,
+        'permission' => "hibah.{$segment}.view",
+    ]];
 
-    foreach ($children as $child => $label) {
+    foreach ($children as $child => $childLabel) {
         $items[] = [
-            'label' => $label,
+            'label' => $childLabel,
             'icon' => $child === 'barang' ? 'lucide-package' : 'lucide-banknote',
             'url' => url("{$prefix}/{$segment}/{$child}"),
             'permission' => "hibah.{$segment}.view",
@@ -48,59 +51,47 @@ $menuFor = static function (string $segment, array $children) use ($prefix): arr
 
 return [
     [
-        'workspace' => 'hibah',
-        'label' => 'Hibah',
+        'workspace' => 'bantuan-daerah',
+        'label' => 'Bantuan Daerah',
         'icon' => 'lucide-hand-coins',
-        'group' => 'Bantuan Daerah',
+        'group' => 'Layanan',
         'url' => '',
-        'permission' => 'hibah.hibah.view',
-        'submenu' => $menuFor('hibah', [
-            'uang' => 'Hibah Uang',
-            'barang' => 'Hibah Barang',
-        ]),
-    ],
 
-    [
-        'workspace' => 'bansos',
-        'label' => 'Bansos',
-        'icon' => 'lucide-heart-handshake',
-        'group' => 'Bantuan Daerah',
-        'url' => '',
-        'permission' => 'hibah.bansos.view',
-        'submenu' => $menuFor('bansos', [
-            'uang' => 'Bansos Uang',
-            'barang' => 'Bansos Barang',
-        ]),
-    ],
-
-    [
-        'workspace' => 'bantuan-keuangan',
-        'label' => 'Bantuan Keuangan',
-        'icon' => 'lucide-landmark',
-        'group' => 'Bantuan Daerah',
-        'url' => '',
-        'permission' => 'hibah.bantuan-keuangan.view',
-        'submenu' => $menuFor('bantuan-keuangan', [
-            'umum' => 'Umum',
-            'khusus' => 'Khusus',
-        ]),
-    ],
-
-    [
-        'workspace' => 'hibah-pengaturan',
-        'label' => 'Pengaturan Hibah',
-        'icon' => 'lucide-settings',
-        'group' => 'Bantuan Daerah',
-        'url' => '',
-        'permission' => 'hibah.import',
-        'submenu' => [
+        // TANPA permission di level workspace — kalau diisi
+        // 'hibah.hibah.view', staf yang hanya berhak atas bansos tidak akan
+        // melihat workspace-nya sama sekali (accessible() menyaring dengan
+        // satu permission ini saja). Penggerbangan sesungguhnya ada di tiap
+        // seksi dan tiap submenu, yang masing-masing punya permission
+        // peruntukannya sendiri — dan seksi yang seluruh isinya tak
+        // terjangkau tidak menampilkan apa pun.
+        'permission' => null,
+        'submenu' => array_merge(
+            $section('Hibah', 'lucide-hand-coins', 'hibah', [
+                'uang' => 'Hibah Uang',
+                'barang' => 'Hibah Barang',
+            ]),
+            $section('Bansos', 'lucide-heart-handshake', 'bansos', [
+                'uang' => 'Bansos Uang',
+                'barang' => 'Bansos Barang',
+            ]),
+            $section('Bantuan Keuangan', 'lucide-landmark', 'bantuan-keuangan', [
+                'umum' => 'Umum',
+                'khusus' => 'Khusus',
+            ]),
             [
-                'label' => 'Impor Data',
-                'icon' => 'lucide-upload',
-                'url' => url($prefix.'/import'),
-                'permission' => 'hibah.import',
-                'navigate' => true,
+                [
+                    'section' => 'Pengaturan',
+                    'icon' => 'lucide-settings',
+                    'permission' => 'hibah.import',
+                ],
+                [
+                    'label' => 'Impor Data',
+                    'icon' => 'lucide-upload',
+                    'url' => url($prefix.'/import'),
+                    'permission' => 'hibah.import',
+                    'navigate' => true,
+                ],
             ],
-        ],
+        ),
     ],
 ];
