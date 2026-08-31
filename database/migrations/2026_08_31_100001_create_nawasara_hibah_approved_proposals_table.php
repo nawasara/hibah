@@ -28,7 +28,7 @@ return new class extends Migration
                 ->constrained('nawasara_registry_opd')
                 ->cascadeOnDelete();
 
-            $table->unsignedSmallInteger('fiscal_year')->index();
+            $table->unsignedSmallInteger('fiscal_year')->index('hibah_proposals_year_idx');
 
             // ── Tiga sumbu yang menggantikan kolom kategori teks bebas ──
             //
@@ -37,7 +37,7 @@ return new class extends Migration
             // Migrasi tidak dapat membaca konstanta model — ia berjalan di
             // keadaan yang tidak menjamin model termuat — jadi daftarnya
             // ditulis dua kali. Mengubah salah satu berarti mengubah keduanya.
-            $table->enum('purpose', ['hibah', 'bansos', 'bk'])->index();
+            $table->enum('purpose', ['hibah', 'bansos', 'bk'])->index('hibah_proposals_purpose_idx');
             $table->enum('form', ['uang', 'barang']);
             $table->enum('recipient_type', [
                 'lembaga',
@@ -78,8 +78,15 @@ return new class extends Migration
 
             // Kolom normalisasi terpisah untuk deteksi duplikat. string(191)
             // supaya dapat di-index di utf8mb4; yang mentah tetap text.
-            $table->string('recipient_name_normalized', 191)->nullable()->index();
-            $table->string('recipient_address_normalized', 191)->nullable()->index();
+            //
+            // ⚠️ Nama index ditulis EKSPLISIT. Nama otomatis Laravel
+            // (`{tabel}_{kolom}_index`) melewati batas 64 karakter MySQL di
+            // sini — tabelnya 33 karakter, kolomnya 28 — dan migrasinya
+            // gagal dengan "Identifier name is too long".
+            $table->string('recipient_name_normalized', 191)->nullable();
+            $table->string('recipient_address_normalized', 191)->nullable();
+            $table->index('recipient_name_normalized', 'hibah_proposals_name_norm_idx');
+            $table->index('recipient_address_normalized', 'hibah_proposals_addr_norm_idx');
 
             // ── Anggaran ──
             $table->unsignedBigInteger('budget_before')->default(0);
@@ -103,18 +110,18 @@ return new class extends Migration
                 'partially_disbursed',
                 'disbursed',
                 'cancelled',
-            ])->default('approved')->index();
+            ])->default('approved')->index('hibah_proposals_status_idx');
 
             $table->foreignId('created_by')->nullable()
                 ->constrained('users')->nullOnDelete();
 
             $table->timestamps();
 
-            $table->index(['opd_id', 'fiscal_year']);
+            $table->index(['opd_id', 'fiscal_year'], 'hibah_proposals_opd_year_idx');
 
             // Menu menyaring dengan pasangan ini; tanpa index, tiap halaman
             // memindai seluruh tabel.
-            $table->index(['purpose', 'form']);
+            $table->index(['purpose', 'form'], 'hibah_proposals_purpose_form_idx');
         });
     }
 

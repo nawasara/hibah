@@ -32,6 +32,18 @@ class ApprovedProposal extends Model
 
     protected $guarded = [];
 
+    /**
+     * Status awal diisi model, bukan hanya default kolom.
+     *
+     * Default basis data baru terbaca setelah model di-refresh, jadi tanpa
+     * ini `$proposal->status` kosong tepat setelah create() — dan
+     * recalculateStatus() yang dipanggil importer akan membandingkan dengan
+     * string kosong, lalu menganggapnya berubah setiap kali.
+     */
+    protected $attributes = [
+        'status' => self::STATUS_APPROVED,
+    ];
+
     // ─────────────────────────────────────────────────────────────
     //  Data statis — konstanta, bukan tabel referensi.
     //
@@ -54,6 +66,15 @@ class ApprovedProposal extends Model
         self::PURPOSE_HIBAH => 'Hibah',
         self::PURPOSE_BANSOS => 'Bansos',
         self::PURPOSE_BK => 'Bantuan Keuangan',
+    ];
+
+    public const FORM_UANG = 'uang';
+
+    public const FORM_BARANG = 'barang';
+
+    public const FORMS = [
+        self::FORM_UANG => 'Uang',
+        self::FORM_BARANG => 'Barang',
     ];
 
     /**
@@ -98,15 +119,6 @@ class ApprovedProposal extends Model
     {
         return in_array($child, self::URL_CHILD_SEGMENTS[$purpose] ?? [], true);
     }
-
-    public const FORM_UANG = 'uang';
-
-    public const FORM_BARANG = 'barang';
-
-    public const FORMS = [
-        self::FORM_UANG => 'Uang',
-        self::FORM_BARANG => 'Barang',
-    ];
 
     public const RECIPIENT_TYPES = [
         'lembaga' => 'Lembaga',

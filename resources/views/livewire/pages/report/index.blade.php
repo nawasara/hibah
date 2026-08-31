@@ -1,13 +1,18 @@
 <div>
     <x-slot name="breadcrumb">
         <livewire:nawasara-ui.shared-components.breadcrumb
-            :items="[['label' => 'Hibah & Bansos', 'url' => '#'], ['label' => 'Laporan']]" />
+            :items="[
+                ['label' => \Nawasara\Hibah\Models\ApprovedProposal::PURPOSES[$purpose] ?? '', 'url' => '#'],
+                ['label' => 'Laporan'],
+            ]" />
     </x-slot>
 
     <x-nawasara-ui::page.container>
         <x-nawasara-ui::page-header
-            title="Laporan Hibah & Bansos"
-            description="Rekap per tahun, per OPD, realisasi triwulan, dan deteksi penerima duplikat.">
+            :title="'Laporan '.(\Nawasara\Hibah\Models\ApprovedProposal::PURPOSES[$purpose] ?? '')"
+            :description="$this->showsDuplicates()
+                ? 'Rekap per tahun, per OPD, realisasi triwulan, dan deteksi penerima duplikat.'
+                : 'Rekap per tahun, per OPD, dan realisasi triwulan.'">
             @can('hibah.laporan.export')
                 @php
                     $tahunItems = ['all' => 'Semua tahun'] + $this->tahunOptions;
@@ -26,7 +31,20 @@
 
         {{-- Tabs --}}
         <div class="flex gap-1 border-b border-neutral-200 dark:border-neutral-700 mb-4">
-            @foreach (['tahun' => 'Per Tahun', 'opd' => 'Per OPD', 'triwulan' => 'Realisasi Triwulan', 'duplikat' => 'Deteksi Duplikat'] as $key => $label)
+            @php
+                $tabs = ['tahun' => 'Per Tahun', 'opd' => 'Per OPD', 'triwulan' => 'Realisasi Triwulan'];
+
+                // Tab duplikat TIDAK dirender untuk Bantuan Keuangan. Tab
+                // kosong terbaca "sudah dicek, aman" padahal artinya "tidak
+                // pernah dicek" — desa penerima ADD memang berulang tiap
+                // tahun, dan menandainya duplikat menuduh penyaluran yang
+                // benar sebagai kejanggalan.
+                if ($this->showsDuplicates()) {
+                    $tabs['duplikat'] = 'Deteksi Duplikat';
+                }
+            @endphp
+
+            @foreach ($tabs as $key => $label)
                 <button wire:click="$set('tab', '{{ $key }}')"
                     @class([
                         'px-4 py-2 text-sm font-medium border-b-2 -mb-px',
@@ -85,7 +103,7 @@
             </div>
 
         {{-- Deteksi Duplikat --}}
-        @elseif ($tab === 'duplikat')
+        @elseif ($tab === 'duplikat' && $this->showsDuplicates())
             <div class="mb-3 flex flex-wrap items-center gap-4">
                 <x-nawasara-ui::form.checkbox
                     wire:model.live="crossYear"

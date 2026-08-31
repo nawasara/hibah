@@ -36,7 +36,7 @@ return new class extends Migration
             // Satu baris per triwulan per usulan. Tanpa ini, penyimpanan
             // berulang menumpuk baris ganda dan jumlahnya — yang menentukan
             // status — jadi berlipat.
-            $table->unique(['approved_proposal_id', 'quarter']);
+            $table->unique(['approved_proposal_id', 'quarter'], 'hibah_disbursements_proposal_quarter_unq');
         });
     }
 

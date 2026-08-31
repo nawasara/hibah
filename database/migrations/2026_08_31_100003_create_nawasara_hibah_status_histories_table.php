@@ -42,7 +42,7 @@ return new class extends Migration
             // Hanya created_at: baris riwayat tidak pernah disunting.
             $table->timestamp('created_at')->nullable();
 
-            $table->index(['approved_proposal_id', 'created_at']);
+            $table->index(['approved_proposal_id', 'created_at'], 'hibah_histories_proposal_created_idx');
         });
     }
 
