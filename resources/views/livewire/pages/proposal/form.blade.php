@@ -118,6 +118,60 @@
                 </h3>
 
                 <div class="space-y-4">
+                    {{-- Cari penerima yang sudah terdaftar sebelum mengetik
+                         nama baru.
+
+                         Ada seratus penerima di basis data dan sebagian
+                         namanya berulang dengan ejaan berbeda — "AGUS
+                         MUSTOFA" tercatat tiga kali. Tanpa pencarian, tiap
+                         pengisian berpotensi melahirkan penerima baru yang
+                         seharusnya sama, dan riwayat penerimaannya terpecah
+                         tanpa ada yang menyadari. --}}
+                    <div>
+                        <x-nawasara-ui::form.input
+                            type="text"
+                            label="Cari Penerima Terdaftar"
+                            placeholder="Ketik minimal 3 huruf nama atau alamat..."
+                            wire:model.live.debounce.400ms="recipientSearch" />
+
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                            Opsional — lewati bila penerimanya belum pernah tercatat.
+                        </p>
+
+                        @if (mb_strlen(trim($recipientSearch)) >= 3)
+                            @if ($this->recipientMatches->isEmpty())
+                                <p class="mt-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/60 dark:text-neutral-300">
+                                    Tidak ada yang cocok — isi nama dan alamatnya di bawah,
+                                    penerima baru terdaftar sendiri saat disimpan.
+                                </p>
+                            @else
+                                <ul class="mt-2 divide-y divide-gray-200 overflow-hidden rounded-md border border-gray-200 dark:divide-neutral-700 dark:border-neutral-700">
+                                    @foreach ($this->recipientMatches as $match)
+                                        <li wire:key="match-{{ $match->id }}">
+                                            <button type="button"
+                                                wire:click="useRecipient({{ $match->id }})"
+                                                class="flex w-full items-start justify-between gap-3 bg-white px-3 py-2 text-left transition hover:bg-emerald-50 dark:bg-neutral-800 dark:hover:bg-emerald-900/20">
+                                                <span>
+                                                    <span class="block text-sm font-medium text-neutral-800 dark:text-neutral-100">
+                                                        {{ $match->name }}
+                                                    </span>
+                                                    <span class="block text-xs text-neutral-500 dark:text-neutral-400">
+                                                        {{ $match->address ?: 'belum ada alamat' }}
+                                                        · {{ $match->typeLabel() }}
+                                                    </span>
+                                                </span>
+
+                                                <span class="shrink-0 text-xs tabular-nums text-neutral-500 dark:text-neutral-400">
+                                                    {{ $match->proposals_count }}× menerima
+                                                </span>
+                                            </button>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                        @endif
+                    </div>
+
                     <div>
                         <x-nawasara-ui::form.input
                             type="text"

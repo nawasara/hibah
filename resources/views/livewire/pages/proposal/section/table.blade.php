@@ -136,9 +136,20 @@
                             <div class="font-medium text-neutral-800 dark:text-neutral-100">
                                 {{ $row->recipient_name }}
                             </div>
+
+                            {{-- Alamat SELALU punya barisnya, terisi atau
+                                 tidak. Menyembunyikannya saat kosong membuat
+                                 halaman terlihat berbeda antar peruntukan —
+                                 hibah uang punya alamat di 11 dari 45 baris,
+                                 sisanya nol — dan itu terbaca seperti kolomnya
+                                 hilang, bukan datanya. --}}
                             @if ($row->recipient_address)
                                 <div class="text-xs text-neutral-500 dark:text-neutral-400">
                                     {{ \Illuminate\Support\Str::limit($row->recipient_address, 60) }}
+                                </div>
+                            @else
+                                <div class="text-xs italic text-neutral-400 dark:text-neutral-500">
+                                    belum ada alamat
                                 </div>
                             @endif
                         </td>

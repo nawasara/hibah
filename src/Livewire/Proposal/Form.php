@@ -8,6 +8,7 @@ use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Nawasara\Hibah\Models\ApprovedProposal;
+use Nawasara\Hibah\Models\Recipient;
 use Nawasara\Registry\Models\Opd;
 
 /**
@@ -44,6 +45,15 @@ class Form extends Component
     public ?string $bk_type = null;
 
     public ?string $recipient_name = '';
+
+    /**
+     * Kata kunci pencarian penerima yang sudah terdaftar.
+     *
+     * Terpisah dari `recipient_name`: yang ini alat bantu, yang itu nilai
+     * yang tersimpan. Menyatukannya membuat tiap ketikan memicu pencarian
+     * sekaligus mengubah data yang akan disimpan.
+     */
+    public string $recipientSearch = '';
 
     public ?string $recipient_address = null;
 
@@ -113,6 +123,79 @@ class Form extends Component
                 $this->recipient_type = array_key_first($options);
             }
         }
+    }
+
+    /**
+     * Penerima terdaftar yang cocok dengan kata kunci.
+     *
+     * Ada 100 penerima di basis data dan sebagian namanya berulang dengan
+     * ejaan berbeda — "agus mustofa" muncul tiga kali. Tanpa pencarian, tiap
+     * pengisian berpotensi melahirkan penerima baru yang seharusnya sama,
+     * dan riwayat penerimaannya terpecah tanpa ada yang menyadari.
+     *
+     * Dibatasi jenis penerima yang sedang dipilih: menawarkan lembaga saat
+     * mengisi bansos uang hanya menampilkan pilihan yang akan ditolak
+     * validasi.
+     *
+     * @return \Illuminate\Support\Collection<int, Recipient>
+     */
+    #[Computed]
+    public function recipientMatches()
+    {
+        $term = trim($this->recipientSearch);
+
+        if (mb_strlen($term) < 3) {
+            return collect();
+        }
+
+        return Recipient::query()
+            ->when($this->recipient_type !== '', fn ($q) => $q->where('type', $this->recipient_type))
+            ->where(function ($q) use ($term) {
+                $like = '%'.$term.'%';
+                $q->where('name', 'like', $like)->orWhere('address', 'like', $like);
+            })
+            ->withCount('proposals')
+            ->orderByDesc('proposals_count')
+            ->limit(8)
+            ->get();
+    }
+
+    /**
+     * Pakai penerima yang sudah ada.
+     *
+     * Nama dan alamat disalin apa adanya dari master — bukan ditautkan lewat
+     * id, karena kolom di usulan menyimpan nama seperti tertulis pada SK-nya
+     * sendiri. Penautan tetap terjadi otomatis saat menyimpan, lewat
+     * pencocokan nama + alamat di model.
+     */
+    public function useRecipient(int $id): void
+    {
+        $recipient = Recipient::find($id);
+
+        if (! $recipient) {
+            return;
+        }
+
+        $this->recipient_name = $recipient->name;
+        $this->recipient_address = $recipient->address;
+
+        // Jenis penerima hanya diikuti bila SAH untuk menu ini. Bila tidak,
+        // pilihan yang ada dibiarkan — dan petugas diberi tahu, bukan
+        // dibiarkan menemukan kolomnya kosong sendiri.
+        if (array_key_exists($recipient->type, $this->recipientOptions())) {
+            $this->recipient_type = $recipient->type;
+        } else {
+            $this->dispatch('toast', [
+                'type' => 'info',
+                'message' => sprintf(
+                    'Nama dan alamat disalin. Jenis penerima "%s" tidak berlaku di menu ini — pilih yang sesuai.',
+                    $recipient->typeLabel(),
+                ),
+            ]);
+        }
+
+        $this->recipientSearch = '';
+        unset($this->recipientMatches);
     }
 
     /**

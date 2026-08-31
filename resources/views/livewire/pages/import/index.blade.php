@@ -18,7 +18,8 @@
                         <div class="flex-1">
                             <p class="text-sm font-medium text-neutral-800 dark:text-neutral-100">1. Unduh template</p>
                             <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 mb-3">
-                                Template berisi kolom yang benar + 1 baris contoh. Hapus baris contoh sebelum mengisi.
+                                Berisi sheet <span class="font-medium">Data</span> untuk diisi, plus satu sheet
+                                referensi per kolom pilihan. Hapus tiga baris contoh sebelum mengisi.
                             </p>
                             <x-nawasara-ui::button color="success" variant="outline" wire:click="downloadTemplate">
                                 <x-slot:icon><x-lucide-download class="size-4" /></x-slot:icon>
@@ -28,9 +29,19 @@
                     </div>
                 </x-nawasara-ui::page.card>
 
-                {{-- Step 2: upload --}}
+                {{-- Step 2: upload — struktur sama dengan langkah 1: ikon di
+                     kiri, judul dan isi di kanan. Sebelumnya hanya <p>, jadi
+                     kedua kartu terlihat seperti dua rancangan berbeda. --}}
                 <x-nawasara-ui::page.card>
-                    <p class="text-sm font-medium text-neutral-800 dark:text-neutral-100 mb-3">2. Unggah & import</p>
+                    <div class="flex items-start gap-3">
+                        <x-lucide-file-up class="size-5 text-emerald-600 shrink-0 mt-0.5" />
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-100">2. Unggah &amp; import</p>
+                            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 mb-3">
+                                Isi template lalu unggah di sini. Baris yang tidak sesuai ditolak
+                                satu per satu — sisanya tetap masuk.
+                            </p>
+
                     <form wire:submit="import" class="space-y-4">
                         <div class="w-40">
                             <x-nawasara-ui::form.input
@@ -55,6 +66,8 @@
                             Mulai Import
                         </x-nawasara-ui::button>
                     </form>
+                        </div>
+                    </div>
                 </x-nawasara-ui::page.card>
 
                 {{-- Result --}}

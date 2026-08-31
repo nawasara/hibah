@@ -170,7 +170,18 @@
 
             <div class="sm:col-span-2 lg:col-span-3">
                 <dt class="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Alamat Penerima</dt>
-                <dd class="mt-1 text-neutral-800 dark:text-neutral-100">{{ $field($proposal->recipient_address) }}</dd>
+                <dd class="mt-1 text-neutral-800 dark:text-neutral-100">
+                    @if ($proposal->recipient_address)
+                        {{ $proposal->recipient_address }}
+                    @else
+                        {{-- Kalimat yang sama dengan daftar dan halaman
+                             Penerima: alamat kosong bukan sekadar "—", ia
+                             sebab penerima bernama sama tidak digabung. --}}
+                        <span class="text-xs italic text-neutral-400 dark:text-neutral-500">
+                            belum ada alamat
+                        </span>
+                    @endif
+                </dd>
             </div>
 
             <div class="sm:col-span-2 lg:col-span-3">
