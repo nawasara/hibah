@@ -56,6 +56,49 @@ class ApprovedProposal extends Model
         self::PURPOSE_BK => 'Bantuan Keuangan',
     ];
 
+    /**
+     * Segmen URL → nilai `purpose`.
+     *
+     * URL memakai `bantuan-keuangan` yang terbaca manusia, basis data
+     * menyimpan `bk`. Pemetaannya ditulis SEKALI di sini; menyebarnya ke
+     * tiap component adalah cara paling cepat membuat satu di antaranya
+     * berbeda diam-diam.
+     */
+    public const URL_SEGMENTS = [
+        'hibah' => self::PURPOSE_HIBAH,
+        'bansos' => self::PURPOSE_BANSOS,
+        'bantuan-keuangan' => self::PURPOSE_BK,
+    ];
+
+    /**
+     * Segmen kedua yang sah untuk tiap peruntukan.
+     *
+     * Hibah dan bansos dipecah menurut bentuk; BK menurut sub-jenisnya.
+     * Pasangan di luar ini — `bansos/khusus`, `bantuan-keuangan/barang` —
+     * harus 404, bukan menampilkan daftar kosong yang terbaca seperti
+     * "belum ada data".
+     */
+    public const URL_CHILD_SEGMENTS = [
+        'hibah' => ['uang', 'barang'],
+        'bansos' => ['uang', 'barang'],
+        'bantuan-keuangan' => ['umum', 'khusus'],
+    ];
+
+    public static function purposeFromSegment(?string $segment): ?string
+    {
+        return self::URL_SEGMENTS[$segment] ?? null;
+    }
+
+    public static function segmentFromPurpose(?string $purpose): ?string
+    {
+        return array_search($purpose, self::URL_SEGMENTS, true) ?: null;
+    }
+
+    public static function isValidSegmentPair(?string $purpose, ?string $child): bool
+    {
+        return in_array($child, self::URL_CHILD_SEGMENTS[$purpose] ?? [], true);
+    }
+
     public const FORM_UANG = 'uang';
 
     public const FORM_BARANG = 'barang';
