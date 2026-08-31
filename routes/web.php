@@ -8,6 +8,7 @@ use Nawasara\Hibah\Livewire\Import\Index as ImportIndex;
 use Nawasara\Hibah\Livewire\Proposal\Detail as ProposalDetail;
 use Nawasara\Hibah\Livewire\Proposal\Form as ProposalForm;
 use Nawasara\Hibah\Livewire\Proposal\Index as ProposalIndex;
+use Nawasara\Hibah\Livewire\Recipient\Index as RecipientIndex;
 use Nawasara\Hibah\Livewire\Report\Index as ReportIndex;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
@@ -74,6 +75,15 @@ Route::middleware(['web', 'auth'])->prefix('hibah')->group(function () {
                 ->whereIn('segment', ['uang', 'barang', 'umum', 'khusus'])
                 ->name('hibah.proposals.detail');
         });
+
+    // ── Penerima — LINTAS peruntukan ─────────────────────────────
+    //
+    // Sengaja di luar grup {purpose}: halaman ini justru berguna karena
+    // memuat ketiganya sekaligus, dan menempatkannya di dalam segmen
+    // peruntukan akan memaksanya memilih salah satu.
+    Route::get('penerima', RecipientIndex::class)
+        ->middleware(PermissionMiddleware::using('hibah.recipient.view'))
+        ->name('hibah.recipients.index');
 
     // ── Pengaturan ───────────────────────────────────────────────
     Route::get('import', ImportIndex::class)

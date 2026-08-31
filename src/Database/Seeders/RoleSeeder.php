@@ -41,6 +41,7 @@ class RoleSeeder extends Seeder
             'hibah.approved-proposal.view',
             'hibah.approved-proposal.update',
             'hibah.disbursement.update',
+            'hibah.recipient.view',
             'hibah.report.export',
         ]);
 

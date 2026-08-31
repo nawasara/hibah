@@ -344,6 +344,23 @@ class ApprovedProposal extends Model
         static::saving(function (self $proposal): void {
             $proposal->recipient_name_normalized = self::normalize($proposal->recipient_name);
             $proposal->recipient_address_normalized = self::normalize($proposal->recipient_address);
+
+            // Tautkan ke master penerima, buat bila belum ada.
+            //
+            // Dilakukan di sini supaya berlaku untuk SEMUA pintu masuk —
+            // formulir, importer, seeder — bukan hanya yang diingat
+            // pemanggilnya. Master penerima yang bolong membuat halaman
+            // Penerima menampilkan gambaran yang tidak lengkap, dan itu
+            // lebih menyesatkan daripada kosong.
+            if ($proposal->recipient_id === null
+                && $proposal->recipient_name !== null
+                && $proposal->recipient_type !== null) {
+                $proposal->recipient_id = Recipient::findOrCreateFor(
+                    $proposal->recipient_name,
+                    $proposal->recipient_address,
+                    $proposal->recipient_type,
+                )->getKey();
+            }
         });
     }
 
@@ -354,6 +371,11 @@ class ApprovedProposal extends Model
     public function opd(): BelongsTo
     {
         return $this->belongsTo(Opd::class, 'opd_id');
+    }
+
+    public function recipient(): BelongsTo
+    {
+        return $this->belongsTo(Recipient::class, 'recipient_id');
     }
 
     public function disbursements(): HasMany

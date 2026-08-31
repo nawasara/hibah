@@ -80,6 +80,18 @@ return [
             ]),
             [
                 [
+                    'section' => 'Penerima',
+                    'icon' => 'lucide-users-round',
+                    'permission' => 'hibah.recipient.view',
+                ],
+                [
+                    'label' => 'Daftar Penerima',
+                    'icon' => 'lucide-list',
+                    'url' => url($prefix.'/penerima'),
+                    'permission' => 'hibah.recipient.view',
+                    'navigate' => true,
+                ],
+                [
                     'section' => 'Pengaturan',
                     'icon' => 'lucide-settings',
                     'permission' => 'hibah.import',

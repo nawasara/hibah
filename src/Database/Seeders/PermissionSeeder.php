@@ -46,6 +46,11 @@ class PermissionSeeder extends Seeder
             'hibah.approved-proposal.view',
             'hibah.approved-proposal.update',
             'hibah.disbursement.update',
+
+            // Halaman Penerima lintas peruntukan — digerbang sendiri karena
+            // ia menampilkan data ketiganya sekaligus, jadi permission
+            // per-peruntukan tidak dapat menggerbanginya.
+            'hibah.recipient.view',
             'hibah.report.export',
 
             // Admin — impor massal lintas OPD.
