@@ -126,6 +126,46 @@ class TemplateColumnMapTest extends TestCase
     }
 
     /**
+     * Tiap kolom pilihan punya sheet referensi bernama SAMA.
+     *
+     * Kalau namanya berbeda, petugas harus menebak sheet mana yang berlaku
+     * untuk kolom yang sedang diisi — dan itu persis pekerjaan yang ingin
+     * dihapus dengan memecah master jadi satu sheet per kolom.
+     */
+    public function test_tiap_kolom_pilihan_punya_sheet_bernama_sama(): void
+    {
+        $template = (string) file_get_contents(dirname(__DIR__).'/src/Exports/TemplateExport.php');
+
+        foreach (['Peruntukan', 'Bentuk', 'Jenis Penerima', 'Jenis BK', 'Nama OPD'] as $column) {
+            $this->assertStringContainsString(
+                "new ReferenceSheet('{$column}'",
+                $template,
+                "kolom '{$column}' tidak punya sheet referensi bernama sama",
+            );
+        }
+    }
+
+    /**
+     * Sheet OPD memuat KODE dan NAMA.
+     *
+     * Kode lebih pendek dan lebih jarang salah ketik, tetapi sebagiannya
+     * masih hasil generate lama yang terpotong (BADAN_KESATUAN_BANGS) —
+     * jadi nama tetap ditampilkan sebagai jalan keluar, dan importer
+     * menerima keduanya.
+     */
+    public function test_sheet_opd_memuat_kode_dan_nama(): void
+    {
+        $template = (string) file_get_contents(dirname(__DIR__).'/src/Exports/TemplateExport.php');
+        $import = (string) file_get_contents(dirname(__DIR__).'/src/Imports/ApprovedProposalImport.php');
+
+        $this->assertStringContainsString("new ReferenceSheet('Nama OPD', ['Kode', 'Nama']", $template);
+
+        // Importer harus mencoba kode DAN nama.
+        $this->assertStringContainsString("where('code', Str::upper(\$value))", $import);
+        $this->assertStringContainsString("where('name', \$value)", $import);
+    }
+
+    /**
      * Importer HARUS membatasi diri ke satu sheet.
      *
      * Tanpa WithMultipleSheets, Maatwebsite membaca SELURUH sheet dengan

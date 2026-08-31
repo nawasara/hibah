@@ -388,24 +388,67 @@ class ApprovedProposalImport implements ToCollection, WithChunkReading, WithMult
         rmdir($dir);
     }
 
-    protected function resolveOpd(string $name): int
+    /**
+     * Cari OPD dari KODE atau NAMA.
+     *
+     * Sheet "Master OPD" menampilkan keduanya, dan berkas lama memakai nama
+     * lengkap — jadi keduanya diterima. Kode dicoba lebih dulu karena lebih
+     * pendek dan lebih jarang salah ketik.
+     */
+    protected function resolveOpd(string $value): int
     {
-        $name = $name !== '' ? $name : 'TIDAK DIKETAHUI';
+        $value = $value !== '' ? $value : 'TIDAK DIKETAHUI';
 
-        if (isset($this->opdCache[$name])) {
-            return $this->opdCache[$name];
+        if (isset($this->opdCache[$value])) {
+            return $this->opdCache[$value];
         }
 
-        $opd = Opd::where('name', $name)->first();
+        $opd = Opd::where('code', Str::upper($value))->first()
+            ?? Opd::where('name', $value)->first();
+
         if (! $opd) {
             $opd = Opd::create([
-                'code' => Str::upper(Str::slug(Str::limit($name, 20, ''), '_')) ?: 'OPD_'.Str::random(4),
-                'name' => $name,
+                'code' => $this->generateOpdCode($value),
+                'name' => $value,
             ]);
             $this->opdCreated++;
         }
 
-        return $this->opdCache[$name] = $opd->id;
+        return $this->opdCache[$value] = $opd->id;
+    }
+
+    /**
+     * Kode untuk OPD yang belum terdaftar.
+     *
+     * ⚠️ Sebelumnya `Str::limit($name, 20)` — dan itulah yang melahirkan
+     * `BADAN_KESATUAN_BANGS`: nama dipotong di tengah kata, menghasilkan kode
+     * yang tidak dapat dibaca maupun diketik siapa pun. Sekarang huruf awal
+     * tiap kata dipakai (BADAN KESATUAN BANGSA DAN POLITIK → BKBDP), yang
+     * setidaknya menyerupai singkatan yang benar-benar dipakai orang.
+     *
+     * Tetap hanya cadangan: OPD yang sudah terdaftar memakai kodenya sendiri.
+     */
+    protected function generateOpdCode(string $name): string
+    {
+        $words = preg_split('/[\s,\-]+/u', Str::upper(trim($name))) ?: [];
+
+        $initials = '';
+
+        foreach ($words as $word) {
+            $word = preg_replace('/[^A-Z0-9]/', '', $word) ?? '';
+
+            if ($word !== '' && ! in_array($word, ['DAN', 'DI', 'KE', 'DARI'], true)) {
+                $initials .= $word[0];
+            }
+        }
+
+        $initials = substr($initials, 0, 12);
+
+        if ($initials === '' || Opd::where('code', $initials)->exists()) {
+            return 'OPD_'.Str::upper(Str::random(5));
+        }
+
+        return $initials;
     }
 
 

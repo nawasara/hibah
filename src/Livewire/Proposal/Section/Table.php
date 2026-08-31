@@ -10,6 +10,8 @@ use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Maatwebsite\Excel\Facades\Excel;
+use Nawasara\Hibah\Exports\ApprovedProposalExport;
 use Nawasara\Hibah\Models\ApprovedProposal;
 
 /**
@@ -222,6 +224,38 @@ class Table extends Component
         unset($this->rows, $this->total);
 
         $this->dispatch('toast', ['type' => 'success', 'message' => 'Usulan dihapus.']);
+    }
+
+    /**
+     * Unduh daftar ini sebagai Excel — DENGAN saringan yang sedang aktif.
+     *
+     * Mengekspor seluruh peruntukan mengabaikan pekerjaan yang baru saja
+     * dilakukan staf untuk menyaring, dan berkasnya jadi jauh lebih besar
+     * daripada yang mereka minta. Yang diekspor adalah apa yang terlihat.
+     */
+    public function export()
+    {
+        $this->authorize('hibah.report.export');
+
+        $filename = sprintf(
+            '%s-%s-%s.xlsx',
+            $this->purposeSegment,
+            $this->segment,
+            now()->format('Ymd_His'),
+        );
+
+        return Excel::download(
+            new ApprovedProposalExport(
+                purpose: $this->purpose,
+                form: $this->form,
+                fiscalYear: $this->yearFilter !== '' ? (int) $this->yearFilter : null,
+                status: $this->statusFilter !== '' ? $this->statusFilter : null,
+                bkType: $this->bkTypeFilter !== '' ? $this->bkTypeFilter : null,
+                recipientType: $this->recipientTypeFilter !== '' ? $this->recipientTypeFilter : null,
+                search: $this->search,
+            ),
+            $filename,
+        );
     }
 
     #[On('proposal-saved')]

@@ -75,6 +75,14 @@
             <x-nawasara-ui::search-input model="search" placeholder="Cari penerima, alamat, atau SK..." />
 
             <div class="flex items-center gap-2 shrink-0">
+                {{-- Unduh mengikuti saringan yang sedang aktif — lihat
+                     Table::export(). --}}
+                @can('hibah.report.export')
+                    <x-nawasara-ui::icon-button
+                        icon="download" tooltip="Unduh Excel"
+                        placement="left" wire:click="export" />
+                @endcan
+
                 <x-nawasara-ui::icon-button
                     icon="refresh-cw" tooltip="Muat ulang"
                     placement="left" wire:click="refreshRows" />

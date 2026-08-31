@@ -26,6 +26,9 @@ class ApprovedProposalExport implements FromQuery, WithHeadings, WithMapping
         protected ?string $form = null,
         protected ?int $fiscalYear = null,
         protected ?string $status = null,
+        protected ?string $bkType = null,
+        protected ?string $recipientType = null,
+        protected string $search = '',
     ) {}
 
     public function query()
@@ -36,6 +39,18 @@ class ApprovedProposalExport implements FromQuery, WithHeadings, WithMapping
             ->when($this->form, fn ($q) => $q->where('form', $this->form))
             ->when($this->fiscalYear, fn ($q) => $q->where('fiscal_year', $this->fiscalYear))
             ->when($this->status, fn ($q) => $q->where('status', $this->status))
+            ->when($this->bkType, fn ($q) => $q->where('bk_type', $this->bkType))
+            ->when($this->recipientType, fn ($q) => $q->where('recipient_type', $this->recipientType))
+
+            // Pencarian ikut disertakan supaya berkas yang diunduh benar-benar
+            // sama dengan yang terlihat di layar — bukan lebih banyak.
+            ->when($this->search !== '', function ($q) {
+                $term = '%'.$this->search.'%';
+                $q->where(fn ($w) => $w
+                    ->where('recipient_name', 'like', $term)
+                    ->orWhere('recipient_address', 'like', $term)
+                    ->orWhere('decree', 'like', $term));
+            })
             ->orderBy('fiscal_year')
             ->orderBy('opd_id');
     }
