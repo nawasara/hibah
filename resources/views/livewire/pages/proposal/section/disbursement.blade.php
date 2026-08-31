@@ -40,7 +40,9 @@
                 </span>
             @elseif (! $proposal->approved_budget)
                 <span class="text-xs text-amber-700 dark:text-amber-400">
-                    Anggaran disetujui belum diisi, jadi status berhenti di "Sebagian Cair".
+                    Isi <span class="font-medium">Anggaran Disetujui</span> lewat tombol
+                    <span class="font-medium">Ubah</span> supaya status dapat mencapai "Cair" —
+                    tanpa nominal yang disahkan SK, sistem tidak tahu kapan pencairan lunas.
                 </span>
             @endif
         </div>
@@ -91,7 +93,7 @@
                         <span class="text-sm font-medium tabular-nums text-neutral-800 dark:text-neutral-100">
                             @if ($this->remaining === null)
                                 <span class="text-xs font-normal italic text-amber-700 dark:text-amber-400">
-                                    anggaran disetujui belum diisi
+                                    belum dapat dihitung
                                 </span>
                             @else
                                 Rp {{ number_format($this->remaining, 0, ',', '.') }}
@@ -99,7 +101,12 @@
                         </span>
                     </div>
                     <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                        Anggaran disetujui dikurangi total realisasi.
+                        @if ($this->remaining === null)
+                            Butuh <span class="font-medium">Anggaran Disetujui</span> —
+                            usulan ini belum punya SK, jadi nominalnya belum ada.
+                        @else
+                            Anggaran disetujui dikurangi total realisasi.
+                        @endif
                     </p>
                 </div>
 

@@ -65,7 +65,12 @@ class Index extends Component
             return null;
         }
 
-        return function (Builder $q): void {
+        // ⚠️ TANPA tipe parameter. Closure ini dipakai tiga tempat yang
+        // mengoper jenis berbeda: whereHas memberi Builder, sedangkan
+        // withCount dan with memberi relasi (HasMany). Menuliskan
+        // `Builder $q` membuat dua yang terakhir melempar TypeError —
+        // dan pesannya menunjuk baris pemanggil, bukan sumbernya.
+        return function ($q): void {
             $q->when($this->purposeFilter !== '', fn ($w) => $w->where('purpose', $this->purposeFilter))
                 ->when($this->yearFilter !== '', fn ($w) => $w->where('fiscal_year', (int) $this->yearFilter));
         };
@@ -75,6 +80,14 @@ class Index extends Component
     public function rows(): LengthAwarePaginator
     {
         $constraint = $this->proposalConstraint();
+
+        // ⚠️ Boolean eksplisit, JANGAN `->when($constraint, ...)`.
+        //
+        // `when()` memanggil argumen pertamanya bila ia callable, untuk
+        // menghitung nilai kondisinya. Jadi closure saringan tadi
+        // DIJALANKAN pada query Recipient — menghasilkan
+        // `where fiscal_year = 2025` pada tabel yang tidak punya kolom itu.
+        $hasConstraint = $constraint !== null;
 
         return Recipient::query()
             ->when($this->search !== '', function ($q) {
@@ -87,13 +100,13 @@ class Index extends Component
 
             // Penerima yang seluruh usulannya tersaring keluar tidak
             // ditampilkan — baris dengan "0 kali, Rp 0" hanya kebisingan.
-            ->when($constraint, fn ($q) => $q->whereHas('proposals', $constraint))
+            ->when($hasConstraint, fn ($q) => $q->whereHas('proposals', $constraint))
 
             // Tanpa saringan usulan, penerima tanpa usulan sama sekali tetap
             // disembunyikan: ia biasanya sisa dari baris yang dihapus, dan
             // menampilkannya membuat daftar terlihat lebih penuh dari
             // kenyataannya.
-            ->when(! $constraint, fn ($q) => $q->has('proposals'))
+            ->when(! $hasConstraint, fn ($q) => $q->has('proposals'))
 
             ->withCount(['proposals' => fn ($q) => $constraint ? $constraint($q) : $q])
             // ⚠️ coalesce, bukan approved_budget saja: 16 dari 100 baris

@@ -44,7 +44,8 @@
 
                     @unless ($proposal->approved_budget)
                         <p class="mt-2 text-xs text-white/80">
-                            Anggaran disetujui belum diisi — status tidak akan mencapai "Cair".
+                            Ini nominal yang <span class="font-medium">diusulkan</span>.
+                            Anggaran disetujui belum diisi, jadi status tidak akan mencapai "Cair".
                         </p>
                     @endunless
                 </div>

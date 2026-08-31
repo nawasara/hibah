@@ -35,7 +35,11 @@
                     </span>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {{-- Tiga kolom: OPD, Tahun, Jenis Penerima sebaris. Dua kolom
+                     menyisakan Jenis Penerima sendirian di baris kedua, dan
+                     kolom tunggal selebar setengah layar terbaca seperti ada
+                     yang belum dimuat. --}}
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {{-- ⚠️ form.input tidak punya wrapper <div> sendiri; label
                          dan input keluar sebagai sibling. Di dalam grid harus
                          dibungkus, kalau tidak grid menghitung 3 item bukan 2. --}}
@@ -157,9 +161,13 @@
             </x-nawasara-ui::page.card>
 
             <x-nawasara-ui::page.card>
-                <h3 class="mb-4 text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                <h3 class="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
                     Nomenklatur Anggaran
                 </h3>
+                <p class="mb-4 text-xs text-neutral-500 dark:text-neutral-400">
+                    Salin apa adanya dari dokumen anggaran — ketiganya bertingkat:
+                    program memuat kegiatan, kegiatan memuat sub kegiatan.
+                </p>
 
                 <div class="space-y-4">
                     <div><x-nawasara-ui::form.textarea label="Program" wire:model="program" :rows="2" /></div>
