@@ -1,11 +1,15 @@
 <?php
 
-use Nawasara\Hibah\Search\PengajuanSearchProvider;
+declare(strict_types=1);
+
+use Nawasara\Hibah\Search\ApprovedProposalSearchProvider;
 
 /*
- * Command-palette search providers contributed by nawasara/hibah.
- * Pengajuan results are tenant-scoped automatically (ScopedToOpd).
+ * Penyedia hasil palet ⌘K dari nawasara/hibah.
+ *
+ * Hasilnya tersaring per OPD secara otomatis (ScopedToOpd), dan tautannya
+ * mengarah ke menu yang benar sesuai peruntukan tiap baris.
  */
 return [
-    PengajuanSearchProvider::class,
+    ApprovedProposalSearchProvider::class,
 ];

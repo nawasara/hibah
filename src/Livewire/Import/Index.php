@@ -6,7 +6,7 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use Maatwebsite\Excel\Facades\Excel;
 use Nawasara\Hibah\Exports\TemplateExport;
-use Nawasara\Hibah\Imports\PengajuanImport;
+use Nawasara\Hibah\Imports\ApprovedProposalImport;
 
 /**
  * Admin-only bulk import of historical hibah data from an Excel file.
@@ -50,14 +50,14 @@ class Index extends Component
 
         $path = $this->file->getRealPath();
 
-        $import = new PengajuanImport($this->tahun, dry: false);
+        $import = new ApprovedProposalImport($this->tahun, dry: false);
         Excel::import($import, $path);
 
         $this->result = [
             'read' => $import->read,
             'skipped' => $import->skipped,
             'created' => $import->created,
-            'realisasi' => $import->realisasiWritten,
+            'realisasi' => $import->disbursementsWritten,
             'opdCreated' => $import->opdCreated,
         ];
 

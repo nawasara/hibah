@@ -4,7 +4,7 @@ namespace Nawasara\Hibah\Console;
 
 use Illuminate\Console\Command;
 use Maatwebsite\Excel\Facades\Excel;
-use Nawasara\Hibah\Imports\PengajuanImport;
+use Nawasara\Hibah\Imports\ApprovedProposalImport;
 
 /**
  * Import historical hibah data from the OPD's yearly Excel form.
@@ -18,7 +18,7 @@ use Nawasara\Hibah\Imports\PengajuanImport;
  *   row 3+ — data
  *
  * Because of the two-row header, we DON'T use WithHeadingRow — the import
- * maps by zero-based column index instead (see PengajuanImport).
+ * maps by zero-based column index instead (lihat ApprovedProposalImport).
  *
  * --csv streams a pre-converted CSV row-by-row via fgetcsv (importCsv),
  * which is the ONLY memory-safe path for the big files. The 2025 xlsx
@@ -47,7 +47,7 @@ class ImportCommand extends Command
         $mode = $csv ? 'CSV stream' : 'xlsx';
         $this->info(($dry ? '[DRY RUN] ' : '')."Importing {$file} ({$mode}) as tahun {$tahun}...");
 
-        $import = new PengajuanImport($tahun, $dry);
+        $import = new ApprovedProposalImport($tahun, $dry);
 
         if ($csv) {
             $import->importCsv($file);
@@ -62,7 +62,7 @@ class ImportCommand extends Command
                 ['Baris dibaca', $import->read],
                 ['Dilewati (kosong/invalid)', $import->skipped],
                 ['Pengajuan dibuat', $import->created],
-                ['Realisasi diisi', $import->realisasiWritten],
+                ['Realisasi diisi', $import->disbursementsWritten],
                 ['OPD baru dibuat', $import->opdCreated],
             ],
         );
