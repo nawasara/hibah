@@ -42,6 +42,11 @@ return new class extends Migration
     private const DROPPED = [
         'hibah.kategori.manage',
         'hibah.laporan.view',
+
+        // Tidak dirujuk kode mana pun — sisa dari sebelum manajemen
+        // operator OPD pindah ke nawasara/registry
+        // (`registry.membership.manage`).
+        'hibah.operator.manage',
     ];
 
     public function up(): void
