@@ -57,7 +57,7 @@ class Index extends Component
             'read' => $import->read,
             'skipped' => $import->skipped,
             'created' => $import->created,
-            'realisasi' => $import->realisasiWritten,
+            'realisasi' => $import->disbursementsWritten,
             'opdCreated' => $import->opdCreated,
         ];
 

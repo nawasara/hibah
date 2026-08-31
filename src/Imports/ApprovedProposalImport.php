@@ -43,7 +43,7 @@ class ApprovedProposalImport implements ToCollection, WithChunkReading
     public int $read = 0;
     public int $skipped = 0;
     public int $created = 0;
-    public int $realisasiWritten = 0;
+    public int $disbursementsWritten = 0;
     public int $opdCreated = 0;
 
     /** Cache pencarian OPD supaya tidak satu query per baris. */
@@ -99,7 +99,7 @@ class ApprovedProposalImport implements ToCollection, WithChunkReading
 
         if ($this->dry) {
             $this->created++;
-            $this->countRealisasi($cells);
+            $this->countDisbursements($cells);
 
             return;
         }
@@ -165,7 +165,7 @@ class ApprovedProposalImport implements ToCollection, WithChunkReading
         ]);
         $this->created++;
 
-        $this->writeRealisasi($proposal, $cells);
+        $this->writeDisbursements($proposal, $cells);
 
         // Status mengikuti angka yang baru saja ditulis. Tanpa ini, baris
         // yang realisasinya penuh tetap bertuliskan "Disahkan" sampai ada
@@ -387,7 +387,7 @@ class ApprovedProposalImport implements ToCollection, WithChunkReading
     }
 
 
-    protected function writeRealisasi(ApprovedProposal $proposal, array $cells): void
+    protected function writeDisbursements(ApprovedProposal $proposal, array $cells): void
     {
         foreach ([1 => 19, 2 => 20, 3 => 21, 4 => 22] as $quarter => $idx) {
             $val = $this->moneyNullable($cells[$idx] ?? null);
@@ -400,15 +400,15 @@ class ApprovedProposalImport implements ToCollection, WithChunkReading
                 'quarter' => $quarter,
                 'disbursed_amount' => $val,
             ]);
-            $this->realisasiWritten++;
+            $this->disbursementsWritten++;
         }
     }
 
-    protected function countRealisasi(array $cells): void
+    protected function countDisbursements(array $cells): void
     {
         foreach ([19, 20, 21, 22] as $idx) {
             if ($this->moneyNullable($cells[$idx] ?? null)) {
-                $this->realisasiWritten++;
+                $this->disbursementsWritten++;
             }
         }
     }

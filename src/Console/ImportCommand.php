@@ -62,7 +62,7 @@ class ImportCommand extends Command
                 ['Baris dibaca', $import->read],
                 ['Dilewati (kosong/invalid)', $import->skipped],
                 ['Pengajuan dibuat', $import->created],
-                ['Realisasi diisi', $import->realisasiWritten],
+                ['Realisasi diisi', $import->disbursementsWritten],
                 ['OPD baru dibuat', $import->opdCreated],
             ],
         );
