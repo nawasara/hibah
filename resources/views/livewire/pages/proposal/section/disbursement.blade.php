@@ -60,14 +60,46 @@
                 @endforeach
             </div>
 
+            {{-- Kelebihan bayar ditolak saat simpan, dan dikatakan di sini
+                 supaya terlihat sebelum tombolnya ditekan. --}}
+            @if ($this->overspend > 0)
+                <div class="mt-4 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 dark:border-rose-800 dark:bg-rose-900/30">
+                    <p class="text-sm text-rose-800 dark:text-rose-300">
+                        Total realisasi melebihi anggaran disetujui sebesar
+                        <span class="font-semibold tabular-nums">
+                            Rp {{ number_format($this->overspend, 0, ',', '.') }}
+                        </span>.
+                    </p>
+                    <p class="mt-0.5 text-xs text-rose-700 dark:text-rose-400">
+                        Periksa kembali angkanya — biasanya kelebihan satu nol.
+                    </p>
+                </div>
+            @endif
+
+            @error('amounts')
+                <p class="mt-2 text-sm text-rose-600 dark:text-rose-400">{{ $message }}</p>
+            @enderror
+
             <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {{-- Sisa DIHITUNG, bukan diketik. Sebelumnya kolom isian, dan
+                     hasilnya dua angka yang bertentangan di layar yang sama:
+                     total realisasi bergerak saat triwulan diisi, sementara
+                     "belum dicairkan" tetap pada angka lama. --}}
                 <div>
-                    <x-nawasara-ui::form.money
-                        label="Belum Dicairkan"
-                        wire:model="undisbursed_budget"
-                        :disabled="$proposal->isCancelled()" />
+                    <x-nawasara-ui::form.label value="Belum Dicairkan" />
+                    <div class="mt-1 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-right dark:border-neutral-700 dark:bg-neutral-800/60">
+                        <span class="text-sm font-medium tabular-nums text-neutral-800 dark:text-neutral-100">
+                            @if ($this->remaining === null)
+                                <span class="text-xs font-normal italic text-amber-700 dark:text-amber-400">
+                                    anggaran disetujui belum diisi
+                                </span>
+                            @else
+                                Rp {{ number_format($this->remaining, 0, ',', '.') }}
+                            @endif
+                        </span>
+                    </div>
                     <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                        Catatan saja — tidak dipakai menghitung status.
+                        Anggaran disetujui dikurangi total realisasi.
                     </p>
                 </div>
 

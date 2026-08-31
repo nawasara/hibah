@@ -30,14 +30,11 @@ class Disbursement extends Component
     /** @var array<int, int> triwulan => nominal */
     public array $amounts = [1 => 0, 2 => 0, 3 => 0, 4 => 0];
 
-    public ?int $undisbursed_budget = null;
-
     public string $undisbursed_reason = '';
 
     public function mount(ApprovedProposal $proposal): void
     {
         $this->proposal = $proposal;
-        $this->undisbursed_budget = $proposal->undisbursed_budget;
         $this->undisbursed_reason = (string) $proposal->undisbursed_reason;
 
         foreach ($proposal->disbursements as $row) {
@@ -49,6 +46,48 @@ class Disbursement extends Component
     public function total(): int
     {
         return (int) array_sum($this->amounts);
+    }
+
+    /**
+     * Sisa yang belum cair — DIHITUNG, bukan diketik.
+     *
+     * Sebelumnya kolom isian, dan hasilnya dua angka yang bertentangan di
+     * layar yang sama: total realisasi 4.900.000 di sebelah "belum
+     * dicairkan 4.800.000". Yang satu bergerak saat triwulan diisi, yang
+     * satu tidak — dan tidak ada cara membaca mana yang benar.
+     *
+     * Null bila anggaran disetujui belum diisi: tanpa penyebut, sisa tidak
+     * dapat dihitung, dan menampilkan angka apa pun di situ adalah karangan.
+     */
+    #[Computed]
+    public function remaining(): ?int
+    {
+        $approved = (int) $this->proposal->approved_budget;
+
+        if ($approved <= 0) {
+            return null;
+        }
+
+        return max(0, $approved - $this->total());
+    }
+
+    /**
+     * Kelebihan bayar — realisasi melampaui anggaran disetujui.
+     *
+     * Bukan sekadar peringatan tampilan: penyimpanannya ditolak. Angka yang
+     * melebihi SK hampir selalu salah ketik nol, dan menyimpannya berarti
+     * laporan pencairan melebihi pagu tanpa ada yang menyadari.
+     */
+    #[Computed]
+    public function overspend(): int
+    {
+        $approved = (int) $this->proposal->approved_budget;
+
+        if ($approved <= 0) {
+            return 0;
+        }
+
+        return max(0, $this->total() - $approved);
     }
 
     /**
@@ -81,7 +120,6 @@ class Disbursement extends Component
             'amounts.2' => ['required', 'integer', 'min:0'],
             'amounts.3' => ['required', 'integer', 'min:0'],
             'amounts.4' => ['required', 'integer', 'min:0'],
-            'undisbursed_budget' => ['nullable', 'integer', 'min:0'],
             'undisbursed_reason' => ['nullable', 'string', 'max:2000'],
         ];
     }
@@ -104,6 +142,21 @@ class Disbursement extends Component
 
         $this->validate();
 
+        // ⚠️ Ditolak, bukan sekadar diperingatkan. Realisasi yang melampaui
+        // anggaran disetujui hampir selalu salah ketik nol, dan menyimpannya
+        // membuat laporan pencairan melebihi pagu — kesalahan yang baru
+        // ketahuan saat diperiksa pengawas.
+        if ($this->overspend() > 0) {
+            $this->addError('amounts', sprintf(
+                'Total realisasi Rp %s melebihi anggaran disetujui Rp %s (selisih Rp %s).',
+                number_format($this->total(), 0, ',', '.'),
+                number_format((int) $this->proposal->approved_budget, 0, ',', '.'),
+                number_format($this->overspend(), 0, ',', '.'),
+            ));
+
+            return;
+        }
+
         $before = $this->proposal->status;
 
         DB::transaction(function () use ($before): void {
@@ -117,7 +170,9 @@ class Disbursement extends Component
                 );
             }
 
-            $this->proposal->undisbursed_budget = $this->undisbursed_budget;
+            // Sisa DITURUNKAN dari angka triwulan, bukan diambil dari
+            // masukan — kolomnya sudah tidak ada di formulir.
+            $this->proposal->undisbursed_budget = $this->remaining();
             $this->proposal->undisbursed_reason = $this->undisbursed_reason ?: null;
 
             // Relasi sudah dimuat sebelum penyimpanan di atas; tanpa
@@ -140,6 +195,10 @@ class Disbursement extends Component
             $this->proposal->save();
         });
 
+        // ⚠️ Relasi dilepas SEBELUM refresh. `refresh()` menyegarkan atribut
+        // tetapi mempertahankan relasi termuat, jadi status proyeksi di panel
+        // ini akan menghitung dari angka sebelum penyimpanan.
+        $this->proposal->unsetRelation('disbursements');
         $this->proposal->refresh();
 
         // Panel lain menampilkan status dan riwayat — keduanya baru saja

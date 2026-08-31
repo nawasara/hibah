@@ -25,10 +25,23 @@ class Summary extends Component
         $this->proposal = $proposal;
     }
 
+    /**
+     * Muat ulang usulan setelah realisasi disimpan di panel sebelah.
+     *
+     * ⚠️ `refresh()` saja TIDAK cukup: ia menyegarkan atribut tetapi
+     * MEMPERTAHANKAN relasi yang sudah termuat, jadi jumlah realisasi tetap
+     * angka lama — bento menampilkan "Sebagian Cair" pada usulan yang baru
+     * saja lunas.
+     *
+     * Diambil ulang dari basis data, bukan sekadar disegarkan, karena
+     * Livewire menghidupkan kembali model ini dari snapshot permintaan
+     * sebelumnya — dan snapshot itu memuat status lama.
+     */
     #[On('proposal-status-changed')]
     public function refreshProposal(): void
     {
-        $this->proposal->refresh();
+        $this->proposal = ApprovedProposal::withoutGlobalScopes()
+            ->findOrFail($this->proposal->getKey());
     }
 
     /**
@@ -46,9 +59,18 @@ class Summary extends Component
             ?? 0);
     }
 
+    /**
+     * Jumlah realisasi — SELALU lewat query, bukan relasi termuat.
+     *
+     * Relasi yang termuat saat halaman pertama dirender tidak ikut berubah
+     * ketika panel realisasi menyimpan, dan `sum()` atasnya mengembalikan
+     * angka sebelum penyimpanan.
+     */
     public function disbursedTotal(): int
     {
-        return (int) $this->proposal->disbursements()->sum('disbursed_amount');
+        return (int) $this->proposal->disbursements()
+            ->toBase()
+            ->sum('disbursed_amount');
     }
 
     /** Sisa yang belum cair — 0 bila anggarannya belum diketahui. */

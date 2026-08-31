@@ -64,6 +64,7 @@ class Cancel extends Component
         });
 
         $this->reset('reason');
+        $this->proposal->unsetRelation('disbursements');
         $this->proposal->refresh();
 
         $this->dispatch('modal-close:hibah-proposal-cancel');
@@ -101,6 +102,7 @@ class Cancel extends Component
             ]);
         });
 
+        $this->proposal->unsetRelation('disbursements');
         $this->proposal->refresh();
 
         $this->dispatch('proposal-status-changed');
