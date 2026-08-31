@@ -70,6 +70,45 @@ class StaleRelationTest extends TestCase
     }
 
     /**
+     * Blade TIDAK boleh memanggil fungsi by-reference pada #[Computed].
+     *
+     * `reset()`, `end()`, `array_shift()` dan sejenisnya menggeser pointer
+     * internal array, jadi PHP menuntut sebuah REFERENSI. Properti
+     * terkomputasi Livewire dihasilkan lewat __get() dan tidak dapat
+     * direferensikan, sehingga hasilnya:
+     *
+     *   Indirect modification of overloaded property ... has no effect
+     *
+     * Ia melempar saat halaman DIBUKA, bukan saat dikompilasi — jadi lolos
+     * view:cache dan baru muncul di layar pengguna.
+     */
+    public function test_blade_tidak_memanggil_fungsi_by_reference_pada_computed(): void
+    {
+        $dir = dirname(__DIR__).'/resources/views';
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir));
+
+        $offenders = [];
+
+        foreach ($it as $file) {
+            if (! $file->isFile() || ! str_ends_with($file->getFilename(), '.blade.php')) {
+                continue;
+            }
+
+            $src = (string) file_get_contents($file->getPathname());
+
+            if (preg_match('/(reset|end|array_shift|array_pop|sort|usort|next|prev)\(\$this->/', $src, $m)) {
+                $offenders[] = $file->getFilename().': '.$m[1].'($this->...)';
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $offenders,
+            'fungsi by-reference pada properti terkomputasi melempar saat halaman dibuka',
+        );
+    }
+
+    /**
      * Sisa DIHITUNG, bukan kolom isian.
      *
      * Sebelumnya "Belum Dicairkan" diketik tangan, dan hasilnya dua angka

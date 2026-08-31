@@ -70,8 +70,14 @@
                                  ditanyakan. Bansos Uang hanya ke Perorangan. --}}
                             <x-nawasara-ui::form.label value="Jenis Penerima" />
                             <div class="mt-1 flex items-center gap-2">
+                                {{-- ⚠️ Jangan `reset()`: fungsi itu menggeser
+                                     pointer internal array, jadi ia butuh
+                                     REFERENSI — dan properti #[Computed]
+                                     tidak dapat direferensikan.
+                                     `array_values()[0]` membaca tanpa
+                                     mengubah apa pun. --}}
                                 <x-nawasara-ui::badge color="neutral">
-                                    {{ reset($this->recipientOptions) }}
+                                    {{ array_values($this->recipientOptions)[0] ?? '—' }}
                                 </x-nawasara-ui::badge>
                                 <span class="text-xs text-neutral-500 dark:text-neutral-400">
                                     satu-satunya yang berlaku untuk
