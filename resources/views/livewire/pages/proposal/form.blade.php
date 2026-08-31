@@ -175,13 +175,13 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <x-nawasara-ui::form.input type="number" label="Anggaran Sebelum Perubahan" wire:model="budget_before" />
+                        <x-nawasara-ui::form.money label="Anggaran Sebelum Perubahan" wire:model="budget_before" />
                     </div>
                     <div>
-                        <x-nawasara-ui::form.input type="number" label="Anggaran Setelah Perubahan" wire:model="budget_after" />
+                        <x-nawasara-ui::form.money label="Anggaran Setelah Perubahan" wire:model="budget_after" />
                     </div>
                     <div>
-                        <x-nawasara-ui::form.input type="number" label="Anggaran Disetujui" wire:model="approved_budget" />
+                        <x-nawasara-ui::form.money label="Anggaran Disetujui" wire:model="approved_budget" />
                         <p class="mt-1 text-xs text-amber-700 dark:text-amber-400">
                             Menentukan kapan status menjadi "Cair". Bila kosong,
                             status berhenti di "Sebagian Cair".

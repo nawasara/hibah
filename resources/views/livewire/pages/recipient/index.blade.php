@@ -68,7 +68,7 @@
             @endif
         @else
             <x-nawasara-ui::table
-                :headers="['Penerima', 'Jenis', 'Peruntukan', 'Kali Menerima', 'Total Anggaran']">
+                :headers="['Penerima', 'Alamat', 'Jenis', 'Peruntukan', 'Kali Menerima', 'Total Anggaran']">
 
                 {{-- ⚠️ WAJIB <x-slot:table> — tanpa ini barisnya kosong tanpa galat. --}}
                 <x-slot:table>
@@ -78,10 +78,22 @@
                                 <div class="font-medium text-neutral-800 dark:text-neutral-100">
                                     {{ $row->name }}
                                 </div>
+                            </td>
+
+                            {{-- Alamat berkolom sendiri, bukan baris kecil di
+                                 bawah nama. Sebagian besar data lama tidak
+                                 memuatnya, dan yang kosong perlu TERLIHAT
+                                 kosong: tanpa alamat, penerima bernama sama
+                                 tidak dapat dibuktikan sama, jadi tidak
+                                 digabungkan — itulah sebabnya satu nama bisa
+                                 muncul beberapa kali di daftar ini. --}}
+                            <td class="px-4 py-3 text-sm text-neutral-600 dark:text-neutral-300">
                                 @if ($row->address)
-                                    <div class="text-xs text-neutral-500 dark:text-neutral-400">
-                                        {{ \Illuminate\Support\Str::limit($row->address, 70) }}
-                                    </div>
+                                    {{ \Illuminate\Support\Str::limit($row->address, 60) }}
+                                @else
+                                    <span class="text-xs italic text-amber-700 dark:text-amber-500">
+                                        belum ada alamat
+                                    </span>
                                 @endif
                             </td>
 

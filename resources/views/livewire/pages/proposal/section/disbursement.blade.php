@@ -49,8 +49,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 @foreach (\Nawasara\Hibah\Models\Disbursement::QUARTERS as $quarter => $label)
                     <div>
-                        <x-nawasara-ui::form.input
-                            type="number"
+                        <x-nawasara-ui::form.money
                             :label="$label"
                             wire:model.live.debounce.400ms="amounts.{{ $quarter }}"
                             :disabled="$proposal->isCancelled()" />
@@ -63,8 +62,7 @@
 
             <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <x-nawasara-ui::form.input
-                        type="number"
+                    <x-nawasara-ui::form.money
                         label="Belum Dicairkan"
                         wire:model="undisbursed_budget"
                         :disabled="$proposal->isCancelled()" />

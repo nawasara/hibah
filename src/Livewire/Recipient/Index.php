@@ -96,9 +96,16 @@ class Index extends Component
             ->when(! $constraint, fn ($q) => $q->has('proposals'))
 
             ->withCount(['proposals' => fn ($q) => $constraint ? $constraint($q) : $q])
+            // ⚠️ coalesce, bukan approved_budget saja: 16 dari 100 baris
+            // contoh punya anggaran usulan tetapi belum punya anggaran
+            // disetujui, dan menjumlah kolom itu sendirian menampilkan
+            // "Rp 0" untuk penerima yang jelas menerima sesuatu.
+            //
+            // Urutannya sama dengan yang dipakai daftar usulan, supaya angka
+            // di dua halaman tidak pernah berbeda untuk baris yang sama.
             ->withSum(
                 ['proposals as total_budget' => fn ($q) => $constraint ? $constraint($q) : $q],
-                'approved_budget',
+                \Illuminate\Support\Facades\DB::raw('COALESCE(approved_budget, budget_after, budget_before, 0)'),
             )
             // Peruntukan dimuat sekali untuk seluruh halaman. Tanpa ini,
             // lencana peruntukan memicu satu query per baris — 25 query
