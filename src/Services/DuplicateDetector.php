@@ -3,12 +3,12 @@
 namespace Nawasara\Hibah\Services;
 
 use Illuminate\Support\Collection;
-use Nawasara\Hibah\Models\Pengajuan;
+use Nawasara\Hibah\Models\ApprovedProposal;
 
 /**
  * Finds potential duplicate / double-funded recipients by grouping on the
  * NORMALIZED name + NORMALIZED address (lowercase, punctuation-stripped,
- * space-collapsed — derived on save by Pengajuan::normalize). This catches
+ * space-collapsed — diturunkan saat simpan oleh ApprovedProposal::normalize). This catches
  * the real-world inconsistency in the source Excel ("MI Muhammadiyah 14
  * Beton" vs "MI MUHAMMADIYAH 14 BETON.") that an exact match would miss,
  * tanpa over-flag nama umum seperti "MDT MIFTAHUL HUDA" yang dipakai
@@ -25,7 +25,7 @@ class DuplicateDetector
 {
     /**
      * @param  bool  $requireAddress  When true (default), only rows whose
-     *   alamat_penerima_normalized is populated participate — and grouping
+     *   recipient_address_normalized is populated participate — and grouping
      *   keys on nama+alamat to avoid false positives from common
      *   institution names ("MDT MIFTAHUL HUDA"). When false, falls back to
      *   nama-only grouping so years like 2025 (where OPD staff left
@@ -36,31 +36,49 @@ class DuplicateDetector
      *   tahun: list<int>, total_anggaran: int, ids: list<int>
      * }>
      */
-    public function detect(bool $crossYear = true, ?int $tahun = null, bool $requireAddress = true): Collection
+    public function detect(
+        bool $crossYear = true,
+        ?int $tahun = null,
+        bool $requireAddress = true,
+        ?string $purpose = null,
+    ): Collection
     {
         // OpdScope still applies — an operator sees duplicates only within
         // their own OPD. Admin (no operator row) sees across all OPD, which
         // is the intended cross-OPD double-funding view.
-        $query = Pengajuan::query()
-            ->whereNotNull('nama_penerima_normalized')
-            ->when($tahun, fn ($q) => $q->where('tahun', $tahun));
+        $query = ApprovedProposal::query()
+            // ⚠️ Bantuan Keuangan DIKECUALIKAN, dan ini ditulis di sini —
+            // bukan sebagai saringan di halaman — supaya pemanggil
+            // berikutnya (ekspor, pemeriksaan impor) tidak melewatkannya.
+            //
+            // BK mengalir ke pemerintah desa, dan desa yang sama memang
+            // menerima tiap tahun: itu cara ADD bekerja. Menandainya
+            // duplikat berarti menuduh penyaluran yang benar sebagai
+            // kejanggalan — dan dengan 1.124 baris BK di produksi, temuan
+            // hibah/bansos yang sungguh perlu ditinjau akan tenggelam.
+            ->duplicateCheckable()
+            // Laporan tiap menu memeriksa peruntukannya sendiri. Tanpa ini,
+            // laporan Hibah akan menampilkan duplikat bansos.
+            ->when($purpose, fn ($q) => $q->where('purpose', $purpose))
+            ->whereNotNull('recipient_name_normalized')
+            ->when($tahun, fn ($q) => $q->where('fiscal_year', $tahun));
 
         $rows = $query->get([
-            'id', 'tahun', 'nama_penerima', 'nama_penerima_normalized',
-            'alamat_penerima', 'alamat_penerima_normalized',
-            'anggaran_sebelum', 'anggaran_setelah', 'anggaran_disetujui',
+            'id', 'fiscal_year', 'recipient_name', 'recipient_name_normalized',
+            'recipient_address', 'recipient_address_normalized',
+            'budget_before', 'budget_after', 'approved_budget',
         ]);
 
         if ($requireAddress) {
             // Skip rows without alamat: cannot prove same-recipient without
             // it. False-negative is preferred over false-positive.
-            $candidates = $rows->filter(fn (Pengajuan $p) => ! empty($p->alamat_penerima_normalized));
-            $grouped = $candidates->groupBy(fn (Pengajuan $p) => $p->nama_penerima_normalized.'|'.$p->alamat_penerima_normalized);
+            $candidates = $rows->filter(fn (ApprovedProposal $p) => ! empty($p->recipient_address_normalized));
+            $grouped = $candidates->groupBy(fn (ApprovedProposal $p) => $p->recipient_name_normalized.'|'.$p->recipient_address_normalized);
         } else {
             // Looser mode for years where OPD didn't populate addresses
             // (2025). Auditor must manually verify each hit. Group by
             // nama only; surface the row whether alamat is null or not.
-            $grouped = $rows->groupBy(fn (Pengajuan $p) => $p->nama_penerima_normalized);
+            $grouped = $rows->groupBy(fn (ApprovedProposal $p) => $p->recipient_name_normalized);
         }
 
         return $grouped
@@ -73,7 +91,7 @@ class DuplicateDetector
                 // the same year (true intra-year duplicate). Cross-year shows
                 // every recurring recipient regardless of year spread.
                 if (! $crossYear) {
-                    return $group->groupBy('tahun')->contains(fn ($g) => $g->count() >= 2);
+                    return $group->groupBy('fiscal_year')->contains(fn ($g) => $g->count() >= 2);
                 }
 
                 return true;
@@ -85,14 +103,14 @@ class DuplicateDetector
                 // Ambil alamat dari row pertama (versi asli, belum ter-
                 // normalisasi) supaya auditor lihat label aslinya.
                 return [
-                    'nama' => $first->nama_penerima,
-                    'alamat' => $first->alamat_penerima,
+                    'nama' => $first->recipient_name,
+                    'alamat' => $first->recipient_address,
                     'count' => $group->count(),
-                    'tahun' => $group->pluck('tahun')->unique()->sort()->values()->all(),
+                    'tahun' => $group->pluck('fiscal_year')->unique()->sort()->values()->all(),
                     'total_anggaran' => (int) $group->sum(
-                        fn (Pengajuan $p) => $p->anggaran_disetujui
-                            ?? $p->anggaran_setelah
-                            ?? $p->anggaran_sebelum
+                        fn (ApprovedProposal $p) => $p->approved_budget
+                            ?? $p->budget_after
+                            ?? $p->budget_before
                             ?? 0
                     ),
                     'ids' => $group->pluck('id')->all(),

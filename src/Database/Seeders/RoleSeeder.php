@@ -17,8 +17,8 @@ use Spatie\Permission\Models\Role;
  *                    an operator is "restricted" and sees NOTHING (fail-closed).
  *
  *   hibah-admin    — Admin-Hibah: every hibah permission, including master
- *                    kategori and bulk import. Listed as a privileged role on
- *                    Pengajuan, so (with no membership) they see all OPD.
+ *                    bulk import. Terdaftar sebagai privileged role di
+ *                    ApprovedProposal, jadi (tanpa membership) melihat semua OPD.
  *
  * Idempotent — safe to re-run.
  */
@@ -26,17 +26,25 @@ class RoleSeeder extends Seeder
 {
     public function run(): void
     {
-        $operatorPerms = [
-            'hibah.pengajuan.view',
-            'hibah.pengajuan.create',
-            'hibah.pengajuan.update',
-            'hibah.realisasi.update',
-            'hibah.laporan.view',
-            'hibah.laporan.export',
-        ];
+        // Ketiga peruntukan diberikan bersama: staf hibah dan bansos orang
+        // yang sama. Permissionnya tetap dipisah supaya kelak dapat
+        // dibelah tanpa menyentuh skema — lihat PermissionSeeder.
+        $operatorPerms = [];
+
+        foreach (['hibah', 'bansos', 'bantuan-keuangan'] as $purpose) {
+            $operatorPerms[] = "hibah.{$purpose}.view";
+            $operatorPerms[] = "hibah.{$purpose}.create";
+            $operatorPerms[] = "hibah.{$purpose}.update";
+        }
+
+        $operatorPerms = array_merge($operatorPerms, [
+            'hibah.approved-proposal.view',
+            'hibah.approved-proposal.update',
+            'hibah.disbursement.update',
+            'hibah.report.export',
+        ]);
 
         $adminPerms = array_merge($operatorPerms, [
-            'hibah.kategori.manage',
             'hibah.import',
         ]);
 
