@@ -94,9 +94,9 @@ class Table extends Component
             )
             ->when(
                 $this->bkType === 'khusus',
-                // 'khusus' memuat ADD dan PD sekaligus — catatan diskusi
+                // 'khusus' memuat ADD dan DD sekaligus — catatan diskusi
                 // menuliskannya sebagai satu kelompok.
-                fn ($q) => $q->whereIn('bk_type', ['add', 'pd']),
+                fn ($q) => $q->whereIn('bk_type', ApprovedProposal::BK_SPECIAL_TYPES),
             );
     }
 
@@ -167,7 +167,10 @@ class Table extends Component
     public function bkTypeOptions(): array
     {
         // Hanya relevan di menu Khusus; 'umum' tidak ditawarkan di sana.
-        return array_diff_key(ApprovedProposal::BK_TYPES, ['umum' => null]);
+        return array_intersect_key(
+            ApprovedProposal::BK_TYPES,
+            array_flip(ApprovedProposal::BK_SPECIAL_TYPES),
+        );
     }
 
     /** Judul mengikuti menu, mis. "Hibah Uang" atau "Bantuan Keuangan Umum". */

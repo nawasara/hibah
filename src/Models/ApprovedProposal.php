@@ -131,16 +131,18 @@ class ApprovedProposal extends Model
     /**
      * Sub-jenis Bantuan Keuangan.
      *
-     * ⚠️ 'pd' ADA di enum basis data tetapi TIDAK di sini. Kepanjangan dan
-     * keberadaannya belum dipastikan — data 2024 dan 2025 hanya memuat ADD.
-     * Menawarkan pilihan yang tidak dipahami staf berakhir dengan pilihan
-     * yang terisi asal. Menambahkannya kelak cukup satu baris di sini,
-     * tanpa migrasi.
+     * ADD = Alokasi Dana Desa, DD = Dana Desa — keduanya mengalir ke
+     * pemerintah desa, dan keduanya masuk menu "Khusus". Yang tanpa
+     * keterangan khusus adalah "Umum".
      */
     public const BK_TYPES = [
         'umum' => 'Umum',
         'add' => 'ADD',
+        'dd' => 'DD',
     ];
+
+    /** Sub-jenis yang masuk menu Khusus — 'umum' bukan salah satunya. */
+    public const BK_SPECIAL_TYPES = ['add', 'dd'];
 
     /**
      * Penerima yang sah untuk tiap pasangan (purpose, form).

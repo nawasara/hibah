@@ -88,10 +88,10 @@ class ApprovedProposalSearchProvider implements SearchProvider
         $purposeSegment = ApprovedProposal::segmentFromPurpose($p->purpose) ?? 'hibah';
 
         // BK tanpa sub-jenis dianggap 'umum', bukan 'khusus': khusus berarti
-        // ADD/PD yang ditetapkan, sedangkan yang kosong justru belum
+        // ADD/DD yang ditetapkan, sedangkan yang kosong justru belum
         // dikhususkan. Menebak sebaliknya membuka menu yang tidak memuatnya.
         $childSegment = $p->purpose === ApprovedProposal::PURPOSE_BK
-            ? (in_array($p->bk_type, ['add', 'pd'], true) ? 'khusus' : 'umum')
+            ? (in_array($p->bk_type, ApprovedProposal::BK_SPECIAL_TYPES, true) ? 'khusus' : 'umum')
             : $p->form;
 
         return route('hibah.proposals.detail', [

@@ -7,6 +7,7 @@ namespace Nawasara\Hibah\Imports;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Nawasara\Hibah\Models\ApprovedProposal;
 use Nawasara\Registry\Models\Opd;
@@ -23,7 +24,7 @@ use Nawasara\Registry\Models\Opd;
  *   6  Kamus Usulan    15 Alamat Penerima   24 Alasan
  *   7  SK Kepala Dae.  16 Anggaran Sebelum  25 Bukti Monev (skip — file)
  *   8  Tgl Proposal    17 Anggaran Setelah  26 Keterangan
- *   9  BENTUK          18 JENIS PENERIMA    27 JENIS BK (umum/ADD/PD)
+ *   9  BENTUK          18 JENIS PENERIMA    27 JENIS BK (umum/ADD/DD)
  *
  * Kolom 2, 9, 18, dan 27 BERUBAH di v0.2.0: dulu Kategori (teks bebas),
  * Peruntukan (ditebak dari kata), dan Verifikasi MS/TMS yang kini dicabut.
@@ -38,7 +39,7 @@ use Nawasara\Registry\Models\Opd;
  * Runs with OpdScope bypassed: import is an admin/console operation that
  * must write across all OPD regardless of who triggered it.
  */
-class ApprovedProposalImport implements ToCollection, WithChunkReading
+class ApprovedProposalImport implements ToCollection, WithChunkReading, WithMultipleSheets
 {
     public int $read = 0;
     public int $skipped = 0;
@@ -68,6 +69,27 @@ class ApprovedProposalImport implements ToCollection, WithChunkReading
     public function chunkSize(): int
     {
         return 500;
+    }
+
+    /**
+     * HANYA sheet "Data" yang dibaca.
+     *
+     * ⚠️ Tanpa WithMultipleSheets, Maatwebsite membaca SELURUH sheet dengan
+     * import yang sama (Reader::loadSpreadsheet mengisi sheetImports dengan
+     * array_fill sebanyak jumlah sheet). Sejak template punya sheet "Master",
+     * itu berarti daftar nilai referensi ikut diproses sebagai baris usulan —
+     * dan karena kolom Tahun-nya bukan angka, semuanya lolos sebagai baris
+     * header yang dilewati. Diam, tetapi salah: jumlah "read" jadi
+     * menyesatkan, dan satu perubahan bentuk sheet Master dapat membuatnya
+     * benar-benar terimpor.
+     *
+     * Nama sheet, bukan indeks: petugas dapat memindahkan urutannya.
+     *
+     * @return array<string, $this>
+     */
+    public function sheets(): array
+    {
+        return ['Data' => $this];
     }
 
     public function collection(Collection $rows): void
@@ -465,11 +487,21 @@ class ApprovedProposalImport implements ToCollection, WithChunkReading
     {
         $v = Str::lower(trim($v));
 
-        return match (true) {
-            Str::contains($v, 'add') => 'add',
-            Str::contains($v, 'pd') => 'pd',
-            default => 'umum',
-        };
+        // ⚠️ Dicocokkan sebagai KATA UTUH, bukan substring.
+        //
+        // "add" mengandung "dd", jadi pencocokan substring membuat hasilnya
+        // bergantung pada urutan pemeriksaan — "ADD" terbaca "dd" begitu
+        // seseorang menukar dua baris yang tampak setara. Batas kata
+        // menghapus jebakan itu sepenuhnya.
+        if (preg_match('/\badd\b/', $v) || Str::contains($v, 'alokasi dana desa')) {
+            return 'add';
+        }
+
+        if (preg_match('/\bdd\b/', $v) || Str::contains($v, 'dana desa')) {
+            return 'dd';
+        }
+
+        return 'umum';
     }
 
     /**

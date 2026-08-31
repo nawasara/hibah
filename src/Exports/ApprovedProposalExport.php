@@ -66,9 +66,8 @@ class ApprovedProposalExport implements FromQuery, WithHeadings, WithMapping
             ApprovedProposal::FORMS[$p->form] ?? $p->form,
             ApprovedProposal::RECIPIENT_TYPES[$p->recipient_type] ?? $p->recipient_type,
 
-            // Kosong untuk hibah & bansos. 'pd' sengaja tidak ada di
-            // BK_TYPES, jadi cadangannya menampilkan nilainya apa adanya
-            // alih-alih sel kosong yang menyesatkan.
+            // Kosong untuk hibah & bansos. Cadangan strtoupper menjaga
+            // nilai tak dikenal tetap terbaca alih-alih jadi sel kosong.
             $p->bk_type === null
                 ? null
                 : (ApprovedProposal::BK_TYPES[$p->bk_type] ?? strtoupper($p->bk_type)),

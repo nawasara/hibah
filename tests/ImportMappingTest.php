@@ -39,11 +39,15 @@ class ImportMappingTest extends TestCase
     {
         $v = mb_strtolower(trim($v));
 
-        return match (true) {
-            str_contains($v, 'add') => 'add',
-            str_contains($v, 'pd') => 'pd',
-            default => 'umum',
-        };
+        if (preg_match('/\badd\b/', $v) || str_contains($v, 'alokasi dana desa')) {
+            return 'add';
+        }
+
+        if (preg_match('/\bdd\b/', $v) || str_contains($v, 'dana desa')) {
+            return 'dd';
+        }
+
+        return 'umum';
     }
 
     /** Pencocokan tegas, bukan penebakan dari kata. */
@@ -84,6 +88,9 @@ class ImportMappingTest extends TestCase
      *
      * Bantuan keuangan tanpa keterangan khusus memang bantuan keuangan
      * umum; menolaknya membuang baris yang sah.
+     *
+     * ADD = Alokasi Dana Desa, DD = Dana Desa. Keduanya diperiksa dari
+     * bentuk singkat maupun panjangnya, karena berkas OPD memakai keduanya.
      */
     public function test_bk_kosong_dianggap_umum(): void
     {
@@ -91,7 +98,34 @@ class ImportMappingTest extends TestCase
         $this->assertSame('umum', $this->mapBkType('Umum'));
         $this->assertSame('add', $this->mapBkType('ADD'));
         $this->assertSame('add', $this->mapBkType('Alokasi Dana Desa (ADD)'));
-        $this->assertSame('pd', $this->mapBkType('PD'));
+        $this->assertSame('dd', $this->mapBkType('DD'));
+        $this->assertSame('dd', $this->mapBkType('Dana Desa'));
+    }
+
+    /**
+     * "ADD" tidak boleh terbaca sebagai "DD".
+     *
+     * Kata "add" MENGANDUNG "dd". Dengan pencocokan substring, hasilnya
+     * bergantung pada urutan pemeriksaan — dan dua baris `match` yang
+     * tampak setara akan tertukar cepat atau lambat, membuat seluruh
+     * Alokasi Dana Desa tercatat sebagai Dana Desa tanpa galat apa pun.
+     *
+     * Batas kata () menghapus jebakan itu, dan tes ini menjaganya tetap
+     * terhapus.
+     */
+    public function test_add_tidak_terbaca_sebagai_dd(): void
+    {
+        foreach (['ADD', 'add', ' ADD ', 'Alokasi Dana Desa (ADD)', 'BK ADD'] as $v) {
+            $this->assertSame('add', $this->mapBkType($v), "'{$v}' harus ADD, bukan DD");
+        }
+    }
+
+    /** Dan sebaliknya: DD tetap DD, dalam bentuk singkat maupun panjang. */
+    public function test_dd_dikenali_dua_bentuk(): void
+    {
+        foreach (['DD', 'dd', 'Dana Desa', 'BK DD'] as $v) {
+            $this->assertSame('dd', $this->mapBkType($v), "'{$v}' harus DD");
+        }
     }
 
     /**

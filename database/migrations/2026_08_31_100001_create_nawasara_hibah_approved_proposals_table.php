@@ -49,11 +49,10 @@ return new class extends Migration
 
             // Sub-jenis Bantuan Keuangan. NULL untuk hibah & bansos.
             //
-            // 'pd' ada di sini tetapi TIDAK ditawarkan di formulir: nilainya
-            // belum dipastikan ada dalam praktik. Menyimpannya di enum sejak
-            // awal berarti menawarkannya kelak cukup satu baris konstanta —
-            // menambah nilai enum di MySQL menulis ulang seluruh tabel.
-            $table->enum('bk_type', ['umum', 'add', 'pd'])->nullable();
+            // ADD = Alokasi Dana Desa, DD = Dana Desa. Keduanya bantuan
+            // keuangan khusus ke pemerintah desa, dan keduanya ditawarkan
+            // di formulir.
+            $table->enum('bk_type', ['umum', 'add', 'dd'])->nullable();
 
             // ── Asal usulan ──
             $table->text('proposer')->nullable();
