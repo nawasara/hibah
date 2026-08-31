@@ -1,28 +1,35 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Nawasara\Hibah\Imports;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
-use Nawasara\Hibah\Models\Kategori;
-use Nawasara\Hibah\Models\Pengajuan;
+use Nawasara\Hibah\Models\ApprovedProposal;
 use Nawasara\Registry\Models\Opd;
 
 /**
- * Maps the OPD yearly Excel form into pengajuan + realisasi rows.
+ * Memetakan formulir Excel tahunan OPD menjadi baris usulan + realisasi.
  *
  * Column index map (0-based, confirmed against 2024/2026 files):
  *   1  Tahun           10 Nama OPD          19 Realisasi TW I
- *   2  Kategori        11 Program           20 Realisasi TW II
+ *   2  PERUNTUKAN      11 Program           20 Realisasi TW II
  *   3  Pengusul        12 Kegiatan          21 Realisasi TW III
  *   4  Dapil           13 Sub Kegiatan      22 Realisasi TW IV
  *   5  Lintas Dapil    14 Nama Penerima     23 Anggaran Belum Cair
  *   6  Kamus Usulan    15 Alamat Penerima   24 Alasan
  *   7  SK Kepala Dae.  16 Anggaran Sebelum  25 Bukti Monev (skip — file)
  *   8  Tgl Proposal    17 Anggaran Setelah  26 Keterangan
- *   9  Peruntukan      18 Verifikasi (MS/TMS)
+ *   9  BENTUK          18 JENIS PENERIMA    27 JENIS BK (umum/ADD/PD)
+ *
+ * Kolom 2, 9, 18, dan 27 BERUBAH di v0.2.0: dulu Kategori (teks bebas),
+ * Peruntukan (ditebak dari kata), dan Verifikasi MS/TMS yang kini dicabut.
+ * Template Excel-nya wajib diperbarui sebelum OPD diminta mengisi —
+ * berkas berformat lama akan ditolak baris demi baris, bukan diam-diam
+ * salah tafsir.
  *
  * Two header rows (main + triwulan sub-header) → data starts at index 2
  * within each chunk's collection. We detect & skip header rows by checking
@@ -31,7 +38,7 @@ use Nawasara\Registry\Models\Opd;
  * Runs with OpdScope bypassed: import is an admin/console operation that
  * must write across all OPD regardless of who triggered it.
  */
-class PengajuanImport implements ToCollection, WithChunkReading
+class ApprovedProposalImport implements ToCollection, WithChunkReading
 {
     public int $read = 0;
     public int $skipped = 0;
@@ -39,9 +46,19 @@ class PengajuanImport implements ToCollection, WithChunkReading
     public int $realisasiWritten = 0;
     public int $opdCreated = 0;
 
-    /** Cache OPD + Kategori lookups to avoid a query per row. */
+    /** Cache pencarian OPD supaya tidak satu query per baris. */
     protected array $opdCache = [];
-    protected array $kategoriCache = [];
+
+    /**
+     * Baris yang ditolak beserta alasannya, untuk ditampilkan ke petugas.
+     *
+     * Impor TIDAK berhenti karena satu baris salah — berkas 4.441 baris
+     * pernah gagal di tengah jalan dan menyisakan commit separuh yang harus
+     * di-rollback. Lebih baik memuat yang sah lalu melaporkan sisanya.
+     *
+     * @var list<array{row:int, reason:string}>
+     */
+    public array $rejected = [];
 
     public function __construct(
         protected int $tahun,
@@ -87,39 +104,78 @@ class PengajuanImport implements ToCollection, WithChunkReading
             return;
         }
 
-        $opdId = $this->resolveOpd(trim((string) ($cells[10] ?? '')));
-        $kategoriId = $this->resolveKategori(trim((string) ($cells[2] ?? '')));
+        // Tiga sumbu dibaca APA ADANYA dari berkas, tidak ditebak dari
+        // teks bebas. Penebakan yang lama ("mengandung kata keuangan →
+        // bk") membuat BANTUAN KEUANGAN DARI ADD tercatat 'hibah' untuk
+        // 2024 dan 'bk' untuk 2025 — 562 baris di masing-masing tahun,
+        // aturannya berubah di antara dua impor tanpa ada yang menyadari.
+        $purpose = $this->mapPurpose((string) ($cells[2] ?? ''));
+        $form = $this->mapForm((string) ($cells[9] ?? ''));
+        $recipientType = $this->mapRecipientType((string) ($cells[18] ?? ''));
 
-        $pengajuan = Pengajuan::withoutGlobalScopes()->create([
-            'opd_id' => $opdId,
-            'tahun' => $this->tahun,
-            'kategori_id' => $kategoriId,
-            'peruntukan' => $this->mapPeruntukan((string) ($cells[9] ?? '')),
-            'pengusul' => $this->str($cells[3] ?? null),
+        // BK selalu uang, dan kolom bentuknya lazim dikosongkan di berkas
+        // OPD. Dinormalkan DI SINI supaya nilai yang tersimpan sama dengan
+        // yang divalidasi — bukan hanya lolos pemeriksaan lalu tersimpan null.
+        if ($purpose === ApprovedProposal::PURPOSE_BK && $form === null) {
+            $form = ApprovedProposal::FORM_UANG;
+        }
+
+        $invalid = $this->rejectionReason($purpose, $form, $recipientType);
+
+        if ($invalid !== null) {
+            $this->rejected[] = ['row' => $this->read, 'reason' => $invalid];
+            $this->skipped++;
+
+            return;
+        }
+
+        $proposal = ApprovedProposal::withoutGlobalScopes()->create([
+            'opd_id' => $this->resolveOpd(trim((string) ($cells[10] ?? ''))),
+            'fiscal_year' => $this->tahun,
+
+            'purpose' => $purpose,
+            'form' => $form,
+            'recipient_type' => $recipientType,
+            'bk_type' => $purpose === ApprovedProposal::PURPOSE_BK
+                ? $this->mapBkType((string) ($cells[27] ?? ''))
+                : null,
+
+            'proposer' => $this->str($cells[3] ?? null),
             'dapil' => $this->str($cells[4] ?? null),
-            'lintas_dapil' => $this->bool($cells[5] ?? null),
-            'kamus_usulan' => $this->str($cells[6] ?? null),
-            'sk_kepala_daerah' => $this->str($cells[7] ?? null),
-            'tanggal_proposal' => $this->date($cells[8] ?? null),
+            'cross_dapil' => $this->bool($cells[5] ?? null),
+            'proposal_dictionary' => $this->str($cells[6] ?? null),
+            'decree' => $this->str($cells[7] ?? null),
+            'proposed_at' => $this->date($cells[8] ?? null),
             'program' => $this->str($cells[11] ?? null),
-            'kegiatan' => $this->str($cells[12] ?? null),
-            'sub_kegiatan' => $this->str($cells[13] ?? null),
-            'nama_penerima' => $namaPenerima,
-            'alamat_penerima' => $this->str($cells[15] ?? null),
-            'anggaran_sebelum' => $this->money($cells[16] ?? null),
-            'anggaran_setelah' => $this->moneyNullable($cells[17] ?? null),
-            'status_verifikasi' => $this->mapVerifikasi((string) ($cells[18] ?? '')),
-            'anggaran_belum_cair' => $this->moneyNullable($cells[23] ?? null),
-            'alasan_belum_cair' => $this->str($cells[24] ?? null),
-            'keterangan' => $this->str($cells[26] ?? null),
-            // SK present → treat as approved historically.
-            'status' => $this->str($cells[7] ?? null)
-                ? Pengajuan::STATUS_DISETUJUI
-                : Pengajuan::STATUS_DIAJUKAN,
+            'activity' => $this->str($cells[12] ?? null),
+            'sub_activity' => $this->str($cells[13] ?? null),
+            'recipient_name' => $namaPenerima,
+            'recipient_address' => $this->str($cells[15] ?? null),
+            'budget_before' => $this->money($cells[16] ?? null),
+            'budget_after' => $this->moneyNullable($cells[17] ?? null),
+            'approved_budget' => $this->moneyNullable($cells[17] ?? null),
+            'undisbursed_budget' => $this->moneyNullable($cells[23] ?? null),
+            'undisbursed_reason' => $this->str($cells[24] ?? null),
+            'notes' => $this->str($cells[26] ?? null),
+
+            // Seluruh baris yang diimpor SUDAH disahkan — itu premis paket
+            // ini sejak v0.2.0. Status sesungguhnya dihitung ulang dari
+            // realisasi tepat di bawah, jadi nilai ini hanya titik awal.
+            'status' => ApprovedProposal::STATUS_APPROVED,
         ]);
         $this->created++;
 
-        $this->writeRealisasi($pengajuan, $cells);
+        $this->writeRealisasi($proposal, $cells);
+
+        // Status mengikuti angka yang baru saja ditulis. Tanpa ini, baris
+        // yang realisasinya penuh tetap bertuliskan "Disahkan" sampai ada
+        // yang menyuntingnya — dan laporan pencairan salah sejak hari
+        // pertama.
+        $proposal->unsetRelation('disbursements');
+
+        if ($proposal->recalculateStatus()) {
+            $proposal->save();
+        }
     }
 
     /**
@@ -279,7 +335,7 @@ class PengajuanImport implements ToCollection, WithChunkReading
                     }
 
                     // Build dense 0..max array so importRow() sees column
-                    // indices line up with PengajuanImport column map.
+                    // indeks sejajar dengan peta kolom ApprovedProposalImport.
                     $maxIdx = max(array_keys($rowCells));
                     $line = [];
                     for ($i = 0; $i <= $maxIdx; $i++) {
@@ -330,31 +386,19 @@ class PengajuanImport implements ToCollection, WithChunkReading
         return $this->opdCache[$name] = $opd->id;
     }
 
-    protected function resolveKategori(string $nama): ?int
+
+    protected function writeRealisasi(ApprovedProposal $proposal, array $cells): void
     {
-        if ($nama === '') {
-            return null;
-        }
-
-        if (isset($this->kategoriCache[$nama])) {
-            return $this->kategoriCache[$nama];
-        }
-
-        $kategori = Kategori::firstOrCreate(['nama' => Str::upper($nama)], ['aktif' => true]);
-
-        return $this->kategoriCache[$nama] = $kategori->id;
-    }
-
-    protected function writeRealisasi(Pengajuan $pengajuan, array $cells): void
-    {
-        foreach ([1 => 19, 2 => 20, 3 => 21, 4 => 22] as $tw => $idx) {
+        foreach ([1 => 19, 2 => 20, 3 => 21, 4 => 22] as $quarter => $idx) {
             $val = $this->moneyNullable($cells[$idx] ?? null);
+
             if ($val === null || $val === 0) {
                 continue;
             }
-            $pengajuan->realisasi()->create([
-                'triwulan' => $tw,
-                'realisasi_anggaran' => $val,
+
+            $proposal->disbursements()->create([
+                'quarter' => $quarter,
+                'disbursed_amount' => $val,
             ]);
             $this->realisasiWritten++;
         }
@@ -370,6 +414,99 @@ class PengajuanImport implements ToCollection, WithChunkReading
     }
 
     // --- cell coercion helpers -------------------------------------------
+
+    /**
+     * Pemetaan kolom Excel → nilai basis data.
+     *
+     * Pencocokan TEGAS terhadap daftar nilai yang sah, bukan penebakan dari
+     * kata. Yang tidak cocok mengembalikan null dan barisnya ditolak dengan
+     * alasan yang jelas — sebelumnya ditebak diam-diam, dan tebakannya
+     * berubah antar impor.
+     */
+    protected function mapPurpose(string $v): ?string
+    {
+        return match (Str::lower(trim($v))) {
+            'hibah' => ApprovedProposal::PURPOSE_HIBAH,
+            'bansos', 'bantuan sosial' => ApprovedProposal::PURPOSE_BANSOS,
+            'bk', 'bantuan keuangan' => ApprovedProposal::PURPOSE_BK,
+            default => null,
+        };
+    }
+
+    protected function mapForm(string $v): ?string
+    {
+        return match (Str::lower(trim($v))) {
+            'uang' => ApprovedProposal::FORM_UANG,
+            'barang' => ApprovedProposal::FORM_BARANG,
+            default => null,
+        };
+    }
+
+    protected function mapRecipientType(string $v): ?string
+    {
+        $key = Str::snake(Str::lower(trim($v)));
+
+        // 'pokmasy' diterima sebagai sinonim: catatan diskusi memakai kedua
+        // istilah untuk hal yang sama, dan berkas OPD dapat memuat mana pun.
+        if ($key === 'pokmasy' || $key === 'kelompok') {
+            $key = 'kelompok_masyarakat';
+        }
+
+        return array_key_exists($key, ApprovedProposal::RECIPIENT_TYPES) ? $key : null;
+    }
+
+    /**
+     * Sub-jenis BK. Kosong dianggap 'umum' — bukan ditolak.
+     *
+     * Bantuan keuangan tanpa keterangan khusus memang bantuan keuangan
+     * umum; menolaknya akan membuang baris yang sah.
+     */
+    protected function mapBkType(string $v): string
+    {
+        $v = Str::lower(trim($v));
+
+        return match (true) {
+            Str::contains($v, 'add') => 'add',
+            Str::contains($v, 'pd') => 'pd',
+            default => 'umum',
+        };
+    }
+
+    /**
+     * Alasan penolakan, atau null bila barisnya sah.
+     *
+     * Menyebut MENGAPA, bukan sekadar "tidak valid": petugas yang menerima
+     * daftar tolakan harus tahu sel mana yang perlu dibetulkan tanpa
+     * menebak.
+     */
+    protected function rejectionReason(?string $purpose, ?string $form, ?string $recipientType): ?string
+    {
+        if ($purpose === null) {
+            return 'Peruntukan tidak dikenali — isi Hibah, Bansos, atau Bantuan Keuangan.';
+        }
+
+        if ($form === null) {
+            return 'Bentuk tidak dikenali — isi Uang atau Barang.';
+        }
+
+        if ($recipientType === null) {
+            return 'Jenis penerima tidak dikenali.';
+        }
+
+        if (! ApprovedProposal::isValidCombination($purpose, $form, $recipientType)) {
+            $sah = ApprovedProposal::recipientOptions($purpose, $form);
+
+            return sprintf(
+                '%s %s tidak boleh ke %s. Yang sah: %s.',
+                ApprovedProposal::PURPOSES[$purpose],
+                ApprovedProposal::FORMS[$form],
+                ApprovedProposal::RECIPIENT_TYPES[$recipientType] ?? $recipientType,
+                $sah === [] ? '—' : implode(', ', $sah),
+            );
+        }
+
+        return null;
+    }
 
     protected function str($v): ?string
     {
@@ -448,25 +585,5 @@ class PengajuanImport implements ToCollection, WithChunkReading
         }
     }
 
-    protected function mapPeruntukan(string $v): string
-    {
-        $v = Str::lower($v);
 
-        return match (true) {
-            Str::contains($v, 'bansos') => 'bansos',
-            Str::contains($v, 'bk') || Str::contains($v, 'keuangan') => 'bk',
-            default => 'hibah',
-        };
-    }
-
-    protected function mapVerifikasi(string $v): ?string
-    {
-        $v = Str::upper(trim($v));
-
-        return match (true) {
-            Str::contains($v, 'TMS') => 'tms',
-            Str::contains($v, 'MS') => 'ms',
-            default => null,
-        };
-    }
 }
