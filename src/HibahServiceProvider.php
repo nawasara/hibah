@@ -7,6 +7,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Nawasara\Hibah\Console\ImportCommand;
+use Nawasara\Hibah\Console\SampleDataCommand;
 use Symfony\Component\Finder\Finder;
 
 class HibahServiceProvider extends ServiceProvider
@@ -16,6 +17,7 @@ class HibahServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 ImportCommand::class,
+                SampleDataCommand::class,
             ]);
         }
 

@@ -34,10 +34,29 @@ class SampleProposalSeeder extends Seeder
     {
         if (app()->environment('production')) {
             $this->command?->warn('SampleProposalSeeder dilewati: lingkungan produksi.');
+            $this->command?->line('Untuk paparan, pakai: php artisan hibah:sample --install');
 
             return;
         }
 
+        $this->seed();
+    }
+
+    /**
+     * Jalankan tanpa penjagaan lingkungan.
+     *
+     * HANYA dipanggil SampleDataCommand, yang menandai tiap baris supaya
+     * dapat dicabut kembali tepat sasaran — itulah yang membuat pemasangan
+     * di produksi dapat dipertanggungjawabkan, bukan karena penjagaannya
+     * dianggap berlebihan.
+     */
+    public function runForPresentation(): void
+    {
+        $this->seed();
+    }
+
+    private function seed(): void
+    {
         $rows = require dirname(__DIR__, 3).'/database/seeders/sample-proposals.php';
 
         $opdIds = Opd::query()->pluck('id')->all();
