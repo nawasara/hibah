@@ -301,10 +301,19 @@ class Form extends Component
 
         $this->dispatch('proposal-saved');
 
+        // ⚠️ TANPA `navigate: true`.
+        //
+        // wire:navigate menyajikan halaman tujuan dari SNAPSHOT yang tersimpan
+        // di peramban saat daftar itu terakhir dibuka. Setelah menyimpan, yang
+        // muncul lebih dulu justru daftar SEBELUM perubahan — usulan yang baru
+        // diubah masih menampilkan nilai lamanya.
+        //
+        // Gejalanya menyesatkan: "simpannya cepat, tapi datanya kembali lama".
+        // Datanya sudah tersimpan; yang tertinggal tampilannya.
         $this->redirectRoute('hibah.proposals.index', [
             'purpose' => $this->purposeSegment,
             'segment' => $this->segment,
-        ], navigate: true);
+        ]);
     }
 
     public function pageTitle(): string
