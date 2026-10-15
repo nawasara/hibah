@@ -6,12 +6,16 @@ namespace Nawasara\Hibah\Livewire\Proposal\Section;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Maatwebsite\Excel\Facades\Excel;
+use Nawasara\AuthPrimitives\Attributes\RequiresSudo;
+use Nawasara\AuthPrimitives\Traits\WithSudo;
 use Nawasara\Hibah\Exports\ApprovedProposalExport;
+use Nawasara\Hibah\Livewire\Concerns\AuthorizesPurpose;
 use Nawasara\Hibah\Models\ApprovedProposal;
 
 /**
@@ -20,19 +24,31 @@ use Nawasara\Hibah\Models\ApprovedProposal;
  * `purpose` dan `form` datang dari rute, bukan dari saringan — keduanya
  * sudah ditentukan menu yang dibuka. Yang tersisa disaring staf: tahun,
  * OPD, status, jenis penerima, dan (khusus BK) sub-jenisnya.
+ *
+ * Kelima properti konteks di bawah #[Locked] (audit keamanan 15 Oktober
+ * 2026, temuan S2). Tanpa kunci, staf bansos dapat mengganti `purpose`
+ * menjadi `hibah` dari peramban, lalu melihat, mengekspor, atau menghapus
+ * usulan hibah: middleware rute tidak ikut berjalan pada aksi Livewire.
  */
 class Table extends Component
 {
+    use AuthorizesPurpose;
     use WithPagination;
+    use WithSudo;
 
+    #[Locked]
     public string $purpose = '';
 
+    #[Locked]
     public ?string $form = null;
 
+    #[Locked]
     public ?string $bkType = null;
 
+    #[Locked]
     public string $purposeSegment = '';
 
+    #[Locked]
     public string $segment = '';
 
     #[Url]
@@ -60,6 +76,15 @@ class Table extends Component
         string $purposeSegment,
         string $segment,
     ): void {
+        // Parameter datang dari component induk, tetapi tetap dicocokkan:
+        // komponen ini dapat di-mount di tempat lain, dan pasangan yang
+        // tidak sah lebih baik 404 daripada menyaring dengan nilai karangan.
+        abort_unless(
+            ApprovedProposal::isValidSegmentPair($purposeSegment, $segment)
+                && ApprovedProposal::purposeFromSegment($purposeSegment) === $purpose,
+            404,
+        );
+
         $this->purpose = $purpose;
         $this->form = $form;
         $this->bkType = $bkType;
@@ -87,6 +112,10 @@ class Table extends Component
      */
     protected function baseQuery()
     {
+        // Setiap pemakai baseQuery (tabel, opsi tahun, hapus) melewati
+        // pemeriksaan izin lihat di sini, bukan hanya di middleware rute.
+        $this->authorizePurpose('view');
+
         return ApprovedProposal::query()
             ->where('purpose', $this->purpose)
             ->when($this->form, fn ($q) => $q->where('form', $this->form))
@@ -213,9 +242,13 @@ class Table extends Component
      * ada. Yang dihapus adalah baris yang seharusnya tidak pernah ada;
      * menyimpannya sebagai "batal" membuat daftar penuh sampah.
      */
+    #[RequiresSudo(reason: 'menghapus usulan')]
     public function delete(int $id): void
     {
-        $this->authorize('hibah.'.$this->purposeSegment.'.update');
+        // Permission dari `purpose` yang menyaring query, bukan dari segmen
+        // (audit keamanan 15 Oktober 2026, S2). Sudo karena hapus permanen
+        // (AGENTS.md §6, S6).
+        $this->authorizePurpose('update');
 
         // baseQuery memastikan hanya baris milik menu ini yang terhapus —
         // id dari peruntukan lain tidak ditemukan, bukan terhapus diam-diam.
@@ -237,9 +270,14 @@ class Table extends Component
     {
         $this->authorize('hibah.report.export');
 
+        // Izin ekspor berlaku lintas peruntukan, jadi izin lihat menu ini
+        // juga diperiksa: tanpa itu ekspor menjadi jalan membaca peruntukan
+        // yang menunya tidak boleh dibuka (audit keamanan 15 Oktober 2026, S2).
+        $this->authorizePurpose('view');
+
         $filename = sprintf(
             '%s-%s-%s.xlsx',
-            $this->purposeSegment,
+            ApprovedProposal::segmentFromPurpose($this->purpose),
             $this->segment,
             now()->format('Ymd_His'),
         );
@@ -265,8 +303,15 @@ class Table extends Component
         $this->resetPage();
     }
 
+    protected function purposeValue(): ?string
+    {
+        return $this->purpose;
+    }
+
     public function render()
     {
+        $this->authorizePurpose('view');
+
         return view('nawasara-hibah::livewire.pages.proposal.section.table');
     }
 }

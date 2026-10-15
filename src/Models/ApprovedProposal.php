@@ -120,6 +120,30 @@ class ApprovedProposal extends Model
         return in_array($child, self::URL_CHILD_SEGMENTS[$purpose] ?? [], true);
     }
 
+    /**
+     * Nama permission per peruntukan, mis. `hibah.bantuan-keuangan.update`.
+     *
+     * Disusun dari nilai `purpose` (kolom basis data), BUKAN dari segmen yang
+     * disimpan component. Audit keamanan 15 Oktober 2026, temuan S2: segmen
+     * dan peruntukan dulu properti publik yang dapat diganti peramban, jadi
+     * staf bansos dapat menukarnya ke `hibah` lalu memeriksa izin miliknya
+     * sendiri. Menurunkan permission dari peruntukan yang benar-benar
+     * menyaring query membuat keduanya tidak dapat berbeda.
+     *
+     * Null untuk peruntukan yang tidak dikenal, supaya pemanggil menolak,
+     * bukan memeriksa nama permission karangan.
+     */
+    public static function permissionFor(?string $purpose, string $action): ?string
+    {
+        $segment = self::segmentFromPurpose($purpose);
+
+        if ($segment === null || ! in_array($action, ['view', 'create', 'update'], true)) {
+            return null;
+        }
+
+        return "hibah.{$segment}.{$action}";
+    }
+
     public const RECIPIENT_TYPES = [
         'lembaga' => 'Lembaga',
         'kelompok_masyarakat' => 'Kelompok Masyarakat',

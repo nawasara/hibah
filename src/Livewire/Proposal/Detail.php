@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nawasara\Hibah\Livewire\Proposal;
 
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Nawasara\Hibah\Models\ApprovedProposal;
 
@@ -21,6 +22,7 @@ use Nawasara\Hibah\Models\ApprovedProposal;
  */
 class Detail extends Component
 {
+    #[Locked]
     public ApprovedProposal $proposal;
 
     /**
@@ -29,9 +31,14 @@ class Detail extends Component
      * Dipakai untuk menyusun remah roti dan tautan kembali ke daftar yang
      * benar — staf yang membuka detail dari menu Bansos harus kembali ke
      * Bansos, bukan ke daftar gabungan yang tidak ada.
+     *
+     * #[Locked] pada ketiganya (audit keamanan 15 Oktober 2026, S2): hanya
+     * diisi mount dari rute, tidak pernah ditulis peramban.
      */
+    #[Locked]
     public string $purpose = '';
 
+    #[Locked]
     public string $segment = '';
 
     public function mount(string $purpose, string $segment, ApprovedProposal $proposal): void

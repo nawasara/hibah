@@ -6,7 +6,9 @@ namespace Nawasara\Hibah\Livewire\Proposal;
 
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Nawasara\Hibah\Livewire\Concerns\AuthorizesPurpose;
 use Nawasara\Hibah\Models\ApprovedProposal;
 use Nawasara\Hibah\Models\Recipient;
 use Nawasara\Registry\Models\Opd;
@@ -17,17 +19,31 @@ use Nawasara\Registry\Models\Opd;
  * `purpose` dan `form` **tidak ditanyakan** — keduanya ditentukan menu yang
  * dibuka. Dua select hilang dari layar, dan pilihan jenis penerima sudah
  * menyempit sesuai aturan §3 sebelum staf melihatnya.
+ *
+ * Audit keamanan 15 Oktober 2026:
+ *   - S2: properti konteks #[Locked]. Komentar di save() sudah benar bahwa
+ *     purpose & form tidak boleh dari masukan pengguna, tetapi keduanya
+ *     properti publik biasa, jadi peramban tetap dapat menggantinya.
+ *   - S3: operator anggota OPD dipaksa menyimpan ke OPD-nya sendiri.
+ *     Validasi `exists` saja membiarkan mereka memilih OPD mana pun.
  */
 class Form extends Component
 {
+    use AuthorizesPurpose;
+
+    #[Locked]
     public string $purposeSegment = '';
 
+    #[Locked]
     public string $segment = '';
 
+    #[Locked]
     public string $purpose = '';
 
+    #[Locked]
     public string $form = '';
 
+    #[Locked]
     public ?ApprovedProposal $proposal = null;
 
     // ── Kolom yang diisi staf ────────────────────────────────────
@@ -114,6 +130,13 @@ class Form extends Component
             $this->proposed_at = $proposal->proposed_at?->format('Y-m-d');
         } else {
             $this->fiscal_year = (int) date('Y');
+
+            // Anggota OPD hanya punya satu pilihan, jadi langsung diisi.
+            $scope = $this->opdScope();
+
+            if ($scope['state'] === 'member') {
+                $this->opd_id = $scope['opdId'];
+            }
 
             // Satu-satunya penerima yang sah diisi otomatis — di Bansos Uang
             // hanya ada Perorangan, jadi menanyakannya cuma menambah klik.
@@ -212,11 +235,41 @@ class Form extends Component
         return ApprovedProposal::recipientOptions($this->purpose, $this->form);
     }
 
-    /** @return array<int|string, string> */
+    /**
+     * OPD yang boleh dipilih user ini.
+     *
+     * Admin (privileged) melihat semua; anggota hanya OPD-nya sendiri; user
+     * tanpa keanggotaan tidak mendapat pilihan apa pun (fail-closed, sama
+     * dengan ScopedToOpd). Dipakai juga sebagai daftar sah di rules().
+     *
+     * @return array<int|string, string>
+     */
     #[Computed]
     public function opdOptions(): array
     {
-        return Opd::query()->orderBy('name')->pluck('name', 'id')->all();
+        $scope = $this->opdScope();
+
+        return match ($scope['state']) {
+            'privileged' => Opd::query()->orderBy('name')->pluck('name', 'id')->all(),
+            'member' => Opd::query()->whereKey($scope['opdId'])->pluck('name', 'id')->all(),
+            default => [],
+        };
+    }
+
+    /**
+     * Lingkup OPD user, memakai privilegedRoles() milik ApprovedProposal
+     * supaya formulir dan global scope menilai user dengan aturan yang sama.
+     *
+     * @return array{state: string, opdId: int|null}
+     */
+    protected function opdScope(): array
+    {
+        return ApprovedProposal::opdResolution(auth()->user());
+    }
+
+    protected function purposeValue(): ?string
+    {
+        return $this->purpose;
     }
 
     /** @return array<string, string> */
@@ -229,7 +282,13 @@ class Form extends Component
     protected function rules(): array
     {
         return [
-            'opd_id' => ['required', 'integer', 'exists:nawasara_registry_opd,id'],
+            // Rule::in dari opdOptions(), bukan `exists` saja: `exists` hanya
+            // memastikan OPD-nya ada, bukan bahwa user boleh menulis ke sana
+            // (audit keamanan 15 Oktober 2026, S3).
+            'opd_id' => [
+                'required', 'integer', 'exists:nawasara_registry_opd,id',
+                Rule::in(array_map('intval', array_keys($this->opdOptions()))),
+            ],
             'fiscal_year' => ['required', 'integer', 'min:2000', 'max:2100'],
 
             // Nilai yang sah diturunkan dari matriks, bukan daftar tetap —
@@ -274,11 +333,30 @@ class Form extends Component
 
     public function save(): void
     {
-        $this->authorize(
-            'hibah.'.$this->purposeSegment.'.'.($this->proposal ? 'update' : 'create'),
-        );
+        // Permission dari `purpose`, bukan dari segmen (audit keamanan
+        // 15 Oktober 2026, S2).
+        $this->authorizePurpose($this->proposal ? 'update' : 'create');
+
+        // Usulan yang diubah harus tetap milik menu ini. Model sudah
+        // #[Locked], ini lapis kedua kalau kelak kuncinya terlepas.
+        abort_if($this->proposal && $this->proposal->purpose !== $this->purpose, 404);
+
+        $scope = $this->opdScope();
+
+        abort_if($scope['state'] === 'restricted', 403);
+
+        if ($scope['state'] === 'member') {
+            $this->opd_id = $scope['opdId'];
+        }
 
         $data = $this->validate();
+
+        // Anggota OPD selalu menyimpan ke OPD-nya sendiri, apa pun yang
+        // dikirim peramban (S3). ScopedToOpd juga menolaknya saat `saving`;
+        // yang di sini membuat hasilnya benar, bukan sekadar ditolak.
+        if ($scope['state'] === 'member') {
+            $data['opd_id'] = $scope['opdId'];
+        }
 
         // purpose & form BUKAN dari masukan pengguna — dari rute. Menerima
         // keduanya dari formulir akan membuka kombinasi terlarang lewat

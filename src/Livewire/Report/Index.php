@@ -3,22 +3,30 @@
 namespace Nawasara\Hibah\Livewire\Report;
 
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Maatwebsite\Excel\Facades\Excel;
 use Nawasara\Hibah\Exports\ApprovedProposalExport;
+use Nawasara\Hibah\Livewire\Concerns\AuthorizesPurpose;
 use Nawasara\Hibah\Models\ApprovedProposal;
 use Nawasara\Hibah\Services\DuplicateDetector;
 use Nawasara\Hibah\Services\HibahReporter;
 
 class Index extends Component
 {
-    #[Url]
+    use AuthorizesPurpose;
+
     /**
      * Peruntukan yang dilaporkan — dari segmen rute, bukan pilihan.
      *
      * Tiap menu punya laporannya sendiri, memuat datanya sendiri (§7).
+     *
+     * #[Locked] dan TANPA #[Url] (audit keamanan 15 Oktober 2026, S2).
+     * Dengan #[Url], `?purpose=hibah` di menu laporan bansos ikut mengisi
+     * properti ini, dan tanpa kunci peramban dapat menggantinya kapan saja.
      */
+    #[Locked]
     public string $purpose = '';
 
     public string $tab = 'tahun'; // tahun | opd | triwulan | duplikat
@@ -44,9 +52,14 @@ class Index extends Component
      * even when the user toggles crossYear/tahunFilter while it's open.
      *
      * @var list<int>
+     *
+     * #[Locked]: hanya diisi viewDetail() di server. Tanpa kunci, peramban
+     * dapat mengisi id usulan mana pun dan modal menampilkannya.
      */
+    #[Locked]
     public array $detailIds = [];
 
+    #[Locked]
     public ?string $detailName = null;
 
     /**
@@ -124,6 +137,10 @@ class Index extends Component
     {
         $this->authorize('hibah.report.export');
 
+        // Izin ekspor lintas peruntukan, jadi izin lihat menu ini diperiksa
+        // juga (audit keamanan 15 Oktober 2026, S2).
+        $this->authorizePurpose('view');
+
         $tahun = $this->tahunFilter !== '' ? (int) $this->tahunFilter : null;
 
         $filename = sprintf(
@@ -184,14 +201,26 @@ class Index extends Component
 
         return ApprovedProposal::query()
             ->with(['opd:id,name', 'kategori:id,nama'])
+            // Disaring peruntukan juga, bukan hanya id: lapis kedua kalau
+            // daftar id kelak tidak lagi terkunci.
+            ->where('purpose', $this->purpose)
             ->whereIn('id', $this->detailIds)
             ->orderBy('tahun')
             ->orderBy('id')
             ->get();
     }
 
+    protected function purposeValue(): ?string
+    {
+        return $this->purpose;
+    }
+
     public function render()
     {
+        // Middleware rute tidak berjalan pada aksi Livewire, jadi izin lihat
+        // diperiksa ulang tiap render (audit keamanan 15 Oktober 2026, S2).
+        $this->authorizePurpose('view');
+
         return view('nawasara-hibah::livewire.pages.report.index')
             ->layout('nawasara-ui::components.layouts.app');
     }

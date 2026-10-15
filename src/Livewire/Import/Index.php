@@ -7,6 +7,7 @@ use Livewire\WithFileUploads;
 use Maatwebsite\Excel\Facades\Excel;
 use Nawasara\Hibah\Exports\TemplateExport;
 use Nawasara\Hibah\Imports\ApprovedProposalImport;
+use Nawasara\Hibah\Models\ApprovedProposal;
 
 /**
  * Admin-only bulk import of historical hibah data from an Excel file.
@@ -51,7 +52,12 @@ class Index extends Component
         $path = $this->file->getRealPath();
 
         $import = new ApprovedProposalImport($this->tahun, dry: false);
-        Excel::import($import, $path);
+        // Impor massal memang menulis ke banyak OPD sekaligus, dan sudah
+        // digerbang `hibah.import` di atas. Penjaga tulis ScopedToOpd (audit
+        // keamanan 15 Oktober 2026, S3) dilepas HANYA untuk operasi ini;
+        // tanpa itu, pemegang izin impor yang kebetulan anggota satu OPD
+        // akan gagal di baris pertama milik OPD lain.
+        ApprovedProposal::withoutOpdWriteGuard(fn () => Excel::import($import, $path));
 
         $this->result = [
             'read' => $import->read,

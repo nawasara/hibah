@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nawasara\Hibah\Livewire\Proposal;
 
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Nawasara\Hibah\Models\ApprovedProposal;
 
@@ -16,14 +17,21 @@ use Nawasara\Hibah\Models\ApprovedProposal;
  */
 class Index extends Component
 {
+    // #[Locked]: konteks menu hanya dari rute dan diteruskan ke Section\Table
+    // (audit keamanan 15 Oktober 2026, S2).
+    #[Locked]
     public string $purposeSegment = '';
 
+    #[Locked]
     public string $segment = '';
 
+    #[Locked]
     public string $purpose = '';
 
+    #[Locked]
     public ?string $form = null;
 
+    #[Locked]
     public ?string $bkType = null;
 
     public function mount(string $purpose, string $segment): void
