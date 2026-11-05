@@ -115,7 +115,7 @@
     @else
         <x-nawasara-ui::table
             stickyLast
-            :headers="['Tahun', 'OPD', 'Penerima', 'Jenis Penerima', 'Anggaran', 'Status', '']">
+            :headers="['Tahun', 'OPD', 'Penerima', 'Jenis Penerima', 'Anggaran', '']">
 
             {{-- ⚠️ WAJIB <x-slot:table>. Tanpa ini header tergambar, badge
                  jumlah menyebut angka yang benar, dan barisnya KOSONG —
@@ -152,6 +152,12 @@
                                     belum ada alamat
                                 </div>
                             @endif
+                            {{-- Status di bawah nama, bukan kolom sendiri: terlihat tanpa menggulir ke kanan. --}}
+                            <div class="mt-1">
+                                <x-nawasara-ui::badge :color="$statusColor[$row->status] ?? 'neutral'">
+                                    {{ \Nawasara\Hibah\Models\ApprovedProposal::STATUSES[$row->status] ?? $row->status }}
+                                </x-nawasara-ui::badge>
+                            </div>
                         </td>
 
                         <td class="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-200">
@@ -165,12 +171,6 @@
 
                         <td class="px-4 py-3 text-sm text-right text-neutral-700 dark:text-neutral-200 tabular-nums">
                             Rp {{ number_format((int) ($row->approved_budget ?? $row->budget_before), 0, ',', '.') }}
-                        </td>
-
-                        <td class="px-4 py-3 text-sm">
-                            <x-nawasara-ui::badge :color="$statusColor[$row->status] ?? 'neutral'">
-                                {{ \Nawasara\Hibah\Models\ApprovedProposal::STATUSES[$row->status] ?? $row->status }}
-                            </x-nawasara-ui::badge>
                         </td>
 
                         <td class="px-4 py-3 text-right">
